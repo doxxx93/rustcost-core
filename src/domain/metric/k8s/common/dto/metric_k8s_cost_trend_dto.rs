@@ -3,6 +3,15 @@ use serde::{Serialize, Deserialize};
 use crate::domain::metric::k8s::common::dto::{MetricGranularity, MetricScope};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricCostTrendPointDto {
+    pub time: DateTime<Utc>,
+    pub total_cost_usd: f64,
+    pub cpu_cost_usd: f64,
+    pub memory_cost_usd: f64,
+    pub storage_cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricCostTrendResponseDto {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -10,7 +19,9 @@ pub struct MetricCostTrendResponseDto {
     pub target: Option<String>,
     pub granularity: MetricGranularity,
     pub trend: MetricCostTrendDto,
+    pub points: Vec<MetricCostTrendPointDto>,
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MetricCostTrendDto {

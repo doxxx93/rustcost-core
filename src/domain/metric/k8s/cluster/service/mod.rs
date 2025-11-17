@@ -1,19 +1,18 @@
 use serde_json::{Value};
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{Utc};
 use crate::api::dto::metrics_dto::RangeQuery;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
 use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_api_repository_trait::MetricNodeHourApiRepository;
 use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_api_repository_trait::MetricNodeMinuteApiRepository;
 use crate::domain::metric::k8s::common::dto::{CommonMetricValuesDto, CostMetricDto, FilesystemMetricDto, MetricGetResponseDto, MetricScope, MetricSeriesDto, NetworkMetricDto, UniversalMetricPointDto};
-use crate::domain::metric::k8s::common::util::k8s_metric_determine_granularity::determine_granularity;
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_resolve::resolve_k8s_metric_repository;
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8sMetricRepositoryVariant;
 use std::collections::HashMap;
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::InfoUnitPriceEntity;
 use crate::domain::metric::k8s::common::dto::metric_k8s_cost_summary_dto::{MetricCostSummaryDto, MetricCostSummaryResponseDto};
-use crate::domain::metric::k8s::common::dto::metric_k8s_cost_trend_dto::{MetricCostTrendDto, MetricCostTrendResponseDto};
+use crate::domain::metric::k8s::common::dto::metric_k8s_cost_trend_dto::{MetricCostTrendDto, MetricCostTrendPointDto, MetricCostTrendResponseDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_efficiency_dto::{MetricRawEfficiencyDto, MetricRawEfficiencyResponseDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::{MetricRawSummaryDto, MetricRawSummaryResponseDto};
 use crate::domain::metric::k8s::common::service_helpers::resolve_time_window;
@@ -312,67 +311,83 @@ pub async fn get_metric_k8s_cluster_cost_summary(
 
 
 /// Analyze cluster cost trend (growth, regression, prediction)
+/// Analyze cluster cost trend (growth, regression, prediction)
 pub async fn get_metric_k8s_cluster_cost_trend(
     node_info_list: Vec<InfoNodeEntity>,
     unit_prices: InfoUnitPriceEntity,
     q: RangeQuery,
 ) -> Result<Value> {
-    // 1️⃣ Get detailed cost metrics
+
+    // 1️⃣ Fetch cost-enriched metrics
     let raw_value = get_metric_k8s_cluster_cost(node_info_list, unit_prices.clone(), q).await?;
     let cluster_cost: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
-    // 2️⃣ Extract cost over time
-    let mut points: Vec<(f64, f64)> = Vec::new(); // (x=time_index, y=total_cost)
+    // 2️⃣ Flatten all points into a unified list
+    let mut cost_points: Vec<MetricCostTrendPointDto> = Vec::new();
 
-    for (i, series) in cluster_cost.series.iter().enumerate() {
-        for (j, point) in series.points.iter().enumerate() {
-            if let Some(c) = &point.cost {
-                if let Some(total) = c.total_cost_usd {
-                    // We only care about relative ordering, not timestamps
-                    points.push(((i * 1000 + j) as f64, total));
+    for series in &cluster_cost.series {
+        for point in &series.points {
+            if let Some(cost) = &point.cost {
+                if let Some(total) = cost.total_cost_usd {
+                    cost_points.push(MetricCostTrendPointDto {
+                        time: point.time,
+                        total_cost_usd: total,
+                        cpu_cost_usd: cost.cpu_cost_usd.unwrap_or(0.0),
+                        memory_cost_usd: cost.memory_cost_usd.unwrap_or(0.0),
+                        storage_cost_usd: cost.storage_cost_usd.unwrap_or(0.0),
+                    });
                 }
             }
         }
     }
 
-    if points.is_empty() {
+    // 3️⃣ Sort by timestamp
+    cost_points.sort_by_key(|p| p.time);
+
+    if cost_points.is_empty() {
         return Ok(serde_json::json!({
             "error": "no cost data available for trend analysis"
         }));
     }
 
-    // 3️⃣ Compute start/end costs and growth
-    let start_cost = points.first().map(|(_, y)| *y).unwrap_or(0.0);
-    let end_cost = points.last().map(|(_, y)| *y).unwrap_or(0.0);
+    // 4️⃣ Trend statistics
+    let start_cost = cost_points.first().unwrap().total_cost_usd;
+    let end_cost = cost_points.last().unwrap().total_cost_usd;
     let diff = end_cost - start_cost;
+
     let growth_rate = if start_cost > 0.0 {
         (diff / start_cost) * 100.0
     } else {
         0.0
     };
 
-    // 4️⃣ Linear regression (least squares)
-    let n = points.len() as f64;
-    let sum_x: f64 = points.iter().map(|(x, _)| x).sum();
-    let sum_y: f64 = points.iter().map(|(_, y)| y).sum();
-    let sum_xx: f64 = points.iter().map(|(x, _)| x * x).sum();
-    let sum_xy: f64 = points.iter().map(|(x, y)| x * y).sum();
+    // 5️⃣ Linear regression using real timestamps as X-axis
+    // Convert timestamps to seconds since epoch (f64)
+    let xs: Vec<f64> = cost_points.iter().map(|p| p.time.timestamp() as f64).collect();
+    let ys: Vec<f64> = cost_points.iter().map(|p| p.total_cost_usd).collect();
 
-    let slope = if n * sum_xx - sum_x * sum_x != 0.0 {
-        (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x)
+    let n = xs.len() as f64;
+    let sum_x: f64 = xs.iter().sum();
+    let sum_y: f64 = ys.iter().sum();
+    let sum_xx: f64 = xs.iter().map(|x| x * x).sum();
+    let sum_xy: f64 = xs.iter().zip(ys.iter()).map(|(x, y)| x * y).sum();
+
+    let denominator = n * sum_xx - sum_x * sum_x;
+
+    let slope = if denominator.abs() > f64::EPSILON {
+        (n * sum_xy - sum_x * sum_y) / denominator
     } else {
         0.0
     };
 
-    // 5️⃣ Predict next cost (simple extrapolation)
-    let predicted_next = if let Some((last_x, _)) = points.last() {
-        Some(end_cost + slope)
-    } else {
-        None
+    // 6️⃣ Predict next point (using last timestamp + granularity)
+    let predicted_next = {
+        let last_time = cost_points.last().unwrap().time.timestamp() as f64;
+        Some(end_cost + slope * (last_time + 1.0 - last_time)) // simple +1 step
     };
 
-    // 6️⃣ Build DTO
-    let trend_dto = MetricCostTrendResponseDto {
+    // 7️⃣ Build response DTO
+    let response = MetricCostTrendResponseDto {
         start: cluster_cost.start,
         end: cluster_cost.end,
         scope: MetricScope::Cluster,
@@ -386,10 +401,12 @@ pub async fn get_metric_k8s_cluster_cost_trend(
             regression_slope_usd_per_granularity: slope,
             predicted_next_cost_usd: predicted_next,
         },
+        points: cost_points,
     };
 
-    Ok(serde_json::to_value(trend_dto)?)
+    Ok(serde_json::to_value(response)?)
 }
+
 
 /// Compute cluster-level resource efficiency (CPU, memory, storage)
 pub async fn get_metric_k8s_cluster_raw_efficiency(

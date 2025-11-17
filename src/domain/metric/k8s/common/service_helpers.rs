@@ -11,9 +11,7 @@ use crate::domain::metric::k8s::common::dto::{
 use crate::domain::metric::k8s::common::dto::metric_k8s_cost_summary_dto::{
     MetricCostSummaryDto, MetricCostSummaryResponseDto,
 };
-use crate::domain::metric::k8s::common::dto::metric_k8s_cost_trend_dto::{
-    MetricCostTrendDto, MetricCostTrendResponseDto,
-};
+use crate::domain::metric::k8s::common::dto::metric_k8s_cost_trend_dto::{MetricCostTrendDto, MetricCostTrendPointDto, MetricCostTrendResponseDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_efficiency_dto::{
     MetricRawEfficiencyDto, MetricRawEfficiencyResponseDto,
 };
@@ -273,44 +271,73 @@ pub fn build_cost_trend_dto(
     scope: MetricScope,
     target: Option<String>,
 ) -> Result<MetricCostTrendResponseDto> {
-    let mut points: Vec<(f64, f64)> = Vec::new();
 
-    for (series_idx, series) in metrics.series.iter().enumerate() {
-        for (point_idx, point) in series.points.iter().enumerate() {
-            if let Some(cost) = &point.cost {
-                if let Some(total) = cost.total_cost_usd {
-                    points.push(((series_idx * 1000 + point_idx) as f64, total));
-                }
-            }
-        }
-    }
+    // 1️⃣ Extract all cost points into flattened trend points
+    let mut trend_points: Vec<MetricCostTrendPointDto> = metrics
+        .series
+        .iter()
+        .flat_map(|series| {
+            series.points.iter().filter_map(|p| {
+                p.cost.as_ref().and_then(|c| {
+                    c.total_cost_usd.map(|total| MetricCostTrendPointDto {
+                        time: p.time,
+                        total_cost_usd: total,
+                        cpu_cost_usd: c.cpu_cost_usd.unwrap_or(0.0),
+                        memory_cost_usd: c.memory_cost_usd.unwrap_or(0.0),
+                        storage_cost_usd: c.storage_cost_usd.unwrap_or(0.0),
+                    })
+                })
+            })
+        })
+        .collect();
 
-    if points.is_empty() {
+    if trend_points.is_empty() {
         return Err(anyhow!("no cost data available for trend analysis"));
     }
 
-    let start_cost = points.first().map(|(_, y)| *y).unwrap_or(0.0);
-    let end_cost = points.last().map(|(_, y)| *y).unwrap_or(0.0);
+    // 2️⃣ Sort by timestamp
+    trend_points.sort_by_key(|p| p.time);
+
+    // 3️⃣ Start/end cost
+    let start_cost = trend_points.first().unwrap().total_cost_usd;
+    let end_cost = trend_points.last().unwrap().total_cost_usd;
     let diff = end_cost - start_cost;
-    let growth_rate = if start_cost > 0.0 {
+
+    let growth_rate_percent = if start_cost > 0.0 {
         (diff / start_cost) * 100.0
     } else {
         0.0
     };
 
-    let n = points.len() as f64;
-    let sum_x: f64 = points.iter().map(|(x, _)| x).sum();
-    let sum_y: f64 = points.iter().map(|(_, y)| y).sum();
-    let sum_xx: f64 = points.iter().map(|(x, _)| x * x).sum();
-    let sum_xy: f64 = points.iter().map(|(x, y)| x * y).sum();
+    // 4️⃣ Auto regression using UNIX timestamps
+    let xs: Vec<f64> = trend_points
+        .iter()
+        .map(|p| p.time.timestamp() as f64)
+        .collect();
 
-    let slope = if n * sum_xx - sum_x * sum_x != 0.0 {
-        (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x)
+    let ys: Vec<f64> = trend_points
+        .iter()
+        .map(|p| p.total_cost_usd)
+        .collect();
+
+    let n = xs.len() as f64;
+
+    let sum_x = xs.iter().sum::<f64>();
+    let sum_y = ys.iter().sum::<f64>();
+    let sum_xx = xs.iter().map(|x| x * x).sum::<f64>();
+    let sum_xy = xs.iter().zip(ys.iter()).map(|(x, y)| x * y).sum::<f64>();
+
+    let denom = n * sum_xx - sum_x * sum_x;
+
+    let slope = if denom.abs() > f64::EPSILON {
+        (n * sum_xy - sum_x * sum_y) / denom
     } else {
         0.0
     };
 
-    let predicted_next = points.last().map(|_| end_cost + slope);
+    // Predict the next point — simple linear extrapolation
+    let last_x = xs.last().copied().unwrap_or(0.0);
+    let predicted_next_cost_usd = Some(end_cost + slope * (last_x + 1.0 - last_x));
 
     Ok(MetricCostTrendResponseDto {
         start: metrics.start,
@@ -318,16 +345,20 @@ pub fn build_cost_trend_dto(
         scope,
         target,
         granularity: metrics.granularity.clone(),
+
         trend: MetricCostTrendDto {
             start_cost_usd: start_cost,
             end_cost_usd: end_cost,
             cost_diff_usd: diff,
-            growth_rate_percent: growth_rate,
+            growth_rate_percent,
             regression_slope_usd_per_granularity: slope,
-            predicted_next_cost_usd: predicted_next,
+            predicted_next_cost_usd,
         },
+
+        points: trend_points,
     })
 }
+
 
 pub fn build_efficiency_value(
     summary: MetricRawSummaryResponseDto,
