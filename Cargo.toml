@@ -1,6 +1,6 @@
 [package]
 name = "rustcost-core"
-version = "1.0.0-dev.14"
+version = "1.0.0-dev.15"
 edition = "2021"
 
 [dependencies]
