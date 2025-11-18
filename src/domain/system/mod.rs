@@ -2,5 +2,4 @@
 
 pub mod model;
 pub mod service;
-pub mod usecase;
 pub mod dto;

@@ -4,4 +4,5 @@ pub mod status_service;
 pub mod health_service;
 pub mod backup_service;
 pub mod resync_service;
+pub mod log_service;
 
