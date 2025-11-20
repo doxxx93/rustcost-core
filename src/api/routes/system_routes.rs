@@ -9,6 +9,7 @@ pub fn system_routes() -> Router {
         .route("/health", get(sc::health))
         .route("/backup", post(sc::backup))
         .route("/resync", post(sc::resync))
-        .route("/logs", get(sc::list_logs))
-        .route("/logs/{date}", get(sc::show_log_by_date))
+
+        .route("/log-files", get(sc::get_system_log_file_list))
+        .route("/log-files/{date}", get(sc::get_system_log_lines))
 }
