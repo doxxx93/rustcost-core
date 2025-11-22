@@ -4,15 +4,15 @@ use serde_json::to_string_pretty;
 use tracing::debug;
 
 use crate::api::dto::info_dto::K8sListQuery;
+use crate::core::client::k8s::client_k8s_container_mapper::map_container_status_to_info_container_entity;
+use crate::core::client::k8s::client_k8s_pod::{fetch_pod_by_name_and_namespace, fetch_pods, fetch_pods_by_namespace, fetch_pods_by_node};
 use crate::core::client::k8s::util::{build_client, read_token};
 use crate::core::persistence::info::k8s::container::info_container_api_repository_trait::InfoContainerApiRepository;
 use crate::core::persistence::info::k8s::container::info_container_entity::InfoContainerEntity;
 use crate::core::persistence::info::path::info_k8s_container_dir_path;
+use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 use crate::domain::info::repository::info_k8s_container_api_repository::InfoK8sContainerApiRepositoryImpl;
 use std::fs;
-use crate::core::client::k8s::client_k8s_container_mapper::map_container_status_to_info_container_entity;
-use crate::core::client::k8s::client_k8s_pod::{fetch_pod_by_name_and_namespace, fetch_pods, fetch_pods_by_namespace, fetch_pods_by_node};
-use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 
 /// Fetch one container info by its unique ID, with cache + refresh if stale.
 pub async fn get_info_k8s_container(container_id: String) -> Result<InfoContainerEntity> {
@@ -202,7 +202,7 @@ pub async fn patch_info_k8s_container(
         .context(format!("Cannot patch container '{}': missing info file", id))?;
 
     if entity.pod_uid.is_none() || entity.container_name.is_none() {
-        anyhow!("Corrupt entity: missing identifiers");
+        return Err(anyhow!("Corrupt entity: missing identifiers"));
     }
 
     // 2️⃣ Apply patch — only update fields that are Some()

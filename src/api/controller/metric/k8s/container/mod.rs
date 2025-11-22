@@ -4,7 +4,7 @@ use axum::{
 };
 use serde_json::Value;
 
-use crate::api::dto::{ApiResponse, metrics_dto::RangeQuery};
+use crate::api::dto::{metrics_dto::RangeQuery, ApiResponse};
 use crate::domain::metric::k8s::container::service as metric_k8s_container_service;
 
 pub async fn get_metric_k8s_containers_raw(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
@@ -19,16 +19,10 @@ pub async fn get_metric_k8s_containers_raw(Query(q): Query<RangeQuery>) -> Json<
     }
 }
 
-pub async fn get_metric_k8s_containers_raw_summary(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_container_service::get_metric_k8s_containers_raw_summary(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
+pub async fn get_metric_k8s_containers_raw_summary(
+    Query(q): Query<RangeQuery>
+) -> Json<ApiResponse<Value>> {
+    to_json(metric_k8s_container_service::get_metric_k8s_containers_raw_summary(q).await)
 }
 
 pub async fn get_metric_k8s_containers_raw_efficiency(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
@@ -169,6 +163,7 @@ pub async fn get_metric_k8s_container_cost_trend(
     }
 }
 
+use crate::api::controller::metric::metrics_controller::to_json;
 pub use get_metric_k8s_container_cost as container_cost;
 pub use get_metric_k8s_container_cost_summary as container_cost_summary;
 pub use get_metric_k8s_container_cost_trend as container_cost_trend;

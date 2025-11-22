@@ -3,12 +3,14 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum AppError {
     InternalServerError,
     BodyParsingError(String),
 }
 
+#[allow(dead_code)]
 pub fn internal_error<E>(_err: E) -> AppError {
     AppError::InternalServerError
 }

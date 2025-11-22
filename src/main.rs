@@ -11,14 +11,15 @@ mod handlers;
 mod routes;
 mod scheduler;
 pub mod core;
+mod debug;
 
 // --- Imports ---
 use crate::config::config;
+use crate::debug::run_debug;
 // &'fixed Config
 use crate::routes::app_router;
-use crate::scheduler::schedule::{run_day_loop, run_hour_loop, run_minute_loop};
 use crate::scheduler::scheduler_start_all_tasks;
-use tracing::{info, error};
+use tracing::{error, info};
 
 // --- Entry Point ---
 #[tokio::main]
@@ -52,10 +53,7 @@ async fn run_server(app_config: &crate::config::Config) {
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(16);
 
     if rustcost_debug_mode {
-        let sched_rx = shutdown_rx.resubscribe();
-        // run_minute_loop(&mut broadcast::channel::<()>(1).1).await;
-        // run_hour_loop(&mut broadcast::channel::<()>(5).1).await;
-        run_day_loop(&mut broadcast::channel::<()>(5).1).await;
+        run_debug().await;
     } else {
         // Run the scheduler as a background task that blocks until it receives shutdown
         let sched_rx = shutdown_rx.resubscribe();
