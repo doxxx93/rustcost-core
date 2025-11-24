@@ -1,11 +1,22 @@
+use axum::extract::{State};
 use axum::Json;
-use crate::api::dto::ApiResponse;
-use crate::domain::info::service::info_k8s_persistent_volume_service;
 
-pub async fn get_k8s_persistent_volumes() -> Json<ApiResponse<serde_json::Value>> {
-    match info_k8s_persistent_volume_service::get_k8s_persistent_volumes().await {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
+use crate::api::util::json::to_json;
+use crate::api::dto::ApiResponse;
+use crate::app_state::AppState;
+use crate::errors::AppError;
+
+pub struct InfoK8sPersistentVolumeController;
+
+impl InfoK8sPersistentVolumeController {
+    pub async fn get_k8s_persistent_volumes(
+        State(state): State<AppState>,
+    ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+        to_json(
+            state
+                .info_k8s_service
+                .get_k8s_persistent_volumes()
+                .await,
+        )
     }
 }
-

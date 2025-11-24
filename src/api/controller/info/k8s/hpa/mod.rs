@@ -1,11 +1,17 @@
+use axum::extract::{State};
 use axum::Json;
-use crate::api::dto::ApiResponse;
-use crate::domain::info::service::info_k8s_hpa_service;
 
-pub async fn get_k8s_hpas() -> Json<ApiResponse<serde_json::Value>> {
-    match info_k8s_hpa_service::get_k8s_hpas().await {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
+use crate::api::util::json::to_json;
+use crate::api::dto::ApiResponse;
+use crate::app_state::AppState;
+use crate::errors::AppError;
+
+pub struct InfoK8sHpaController;
+
+impl InfoK8sHpaController {
+    pub async fn get_k8s_hpas(
+        State(state): State<AppState>,
+    ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+        to_json(state.info_k8s_service.get_k8s_hpas().await)
     }
 }
-

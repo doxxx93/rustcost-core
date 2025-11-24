@@ -13,6 +13,7 @@ use crate::core::persistence::info::k8s::container::info_container_repository::I
 use crate::core::persistence::info::path::info_k8s_container_dir_path;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 use std::fs;
+use validator::Validate;
 
 /// Fetch one container info by its unique ID, with cache + refresh if stale.
 pub async fn get_info_k8s_container(container_id: String) -> Result<InfoContainerEntity> {
@@ -195,6 +196,7 @@ pub async fn patch_info_k8s_container(
     id: String,
     patch: InfoK8sContainerPatchRequest,
 ) -> Result<serde_json::Value> {
+    patch.validate()?;
     let repo = InfoContainerRepository::new();
 
     // 1️⃣ Load existing record

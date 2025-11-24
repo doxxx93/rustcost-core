@@ -1,24 +1,27 @@
-use crate::api::controller::metric::metrics_controller::to_json;
-use crate::api::dto::ApiResponse;
-use crate::api::util::validation_ext::ValidateRequestExt;
-use crate::core::persistence::info::fixed::setting::info_setting_entity::InfoSettingEntity;
-use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
+use axum::extract::{State};
 use axum::Json;
 use serde_json::Value;
 
-pub async fn get_info_settings() -> Json<ApiResponse<InfoSettingEntity>> {
-    to_json(crate::domain::info::service::info_settings_service::get_info_settings().await)
-}
+use crate::api::util::json::to_json;
+use crate::api::dto::ApiResponse;
+use crate::app_state::AppState;
+use crate::core::persistence::info::fixed::setting::info_setting_entity::InfoSettingEntity;
+use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
+use crate::errors::AppError;
 
-pub async fn upsert_info_settings(
-    Json(payload): Json<InfoSettingUpsertRequest>,
-) -> Json<ApiResponse<Value>> {
-    // Validate first
-    let payload = match payload.validate_or_err() {
-        Ok(v) => v,
-        Err(err_json) => return err_json,
-    };
+pub struct InfoSettingController;
 
-    // Delegate to to_json()
-    to_json(crate::domain::info::service::info_settings_service::upsert_info_settings(payload).await)
+impl InfoSettingController {
+    pub async fn get_info_settings(
+        State(state): State<AppState>,
+    ) -> Result<Json<ApiResponse<InfoSettingEntity>>, AppError> {
+        to_json(state.info_service.get_info_settings().await)
+    }
+
+    pub async fn upsert_info_settings(
+        State(state): State<AppState>,
+        Json(payload): Json<InfoSettingUpsertRequest>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(state.info_service.upsert_info_settings(payload).await)
+    }
 }

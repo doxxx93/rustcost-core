@@ -4,6 +4,7 @@ use crate::core::persistence::info::fixed::setting::info_setting_api_repository_
 use crate::core::persistence::info::fixed::setting::info_setting_entity::InfoSettingEntity;
 use crate::core::persistence::info::fixed::setting::info_setting_repository::InfoSettingRepository;
 use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
+use validator::Validate;
 
 pub async fn get_info_settings() -> Result<InfoSettingEntity> {
     let repo = InfoSettingRepository::new();
@@ -11,6 +12,7 @@ pub async fn get_info_settings() -> Result<InfoSettingEntity> {
 }
 
 pub async fn upsert_info_settings(req: InfoSettingUpsertRequest) -> Result<Value> {
+    req.validate()?;
     let repo = InfoSettingRepository::new();
     upsert_info_settings_with_repo(&repo, req).await
 }

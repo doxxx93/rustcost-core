@@ -10,6 +10,7 @@ use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
+use validator::Validate;
 
 pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
     let repo = InfoNodeRepository::new();
@@ -132,6 +133,7 @@ pub async fn patch_info_k8s_node(
     id: String,
     patch: InfoK8sNodePatchRequest,
 ) -> Result<serde_json::Value> {
+    patch.validate()?;
     let repo = InfoNodeRepository::new();
 
     // 1️⃣ Load existing record

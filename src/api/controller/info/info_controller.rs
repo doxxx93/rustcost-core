@@ -1,37 +1,36 @@
 //! Info controller: connects routes to info usecases
 
+use axum::extract::{State};
 use axum::Json;
 use serde_json::Value;
+
 use crate::api::dto::ApiResponse;
-use crate::api::util::validation_ext::ValidateRequestExt;
+use crate::api::util::json::to_json;
+use crate::app_state::AppState;
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::InfoUnitPriceEntity;
 use crate::core::persistence::info::fixed::version::info_version_entity::InfoVersionEntity;
 use crate::domain::info::dto::info_unit_price_upsert_request::InfoUnitPriceUpsertRequest;
-pub async fn get_info_unit_prices() -> Json<ApiResponse<InfoUnitPriceEntity>> {
-    match crate::domain::info::service::info_unit_price_service::get_info_unit_prices().await {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-pub async fn upsert_info_unit_prices(
-    Json(payload): Json<InfoUnitPriceUpsertRequest>,
-) -> Json<ApiResponse<Value>> {
-    // ✅ 1. Validate the payload
-    let payload = match payload.validate_or_err() {
-        Ok(v) => v,
-        Err(err_json) => return err_json,
-    };
+use crate::errors::AppError;
 
-    // ✅ 2. Call your service
-    match crate::domain::info::service::info_unit_price_service::upsert_info_unit_prices(payload).await {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
+pub struct InfoController;
 
-pub async fn get_info_versions() -> Json<ApiResponse<InfoVersionEntity>> {
-    match crate::domain::info::service::info_version_service::get_info_versions().await {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
+impl InfoController {
+    pub async fn get_info_unit_prices(
+        State(state): State<AppState>,
+    ) -> Result<Json<ApiResponse<InfoUnitPriceEntity>>, AppError> {
+        to_json(state.info_service.get_info_unit_prices().await)
+    }
+
+    pub async fn upsert_info_unit_prices(
+        State(state): State<AppState>,
+        Json(payload): Json<InfoUnitPriceUpsertRequest>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(state.info_service.upsert_info_unit_prices(payload).await)
+    }
+
+    pub async fn get_info_versions(
+        State(state): State<AppState>,
+    ) -> Result<Json<ApiResponse<InfoVersionEntity>>, AppError> {
+        to_json(state.info_service.get_info_versions().await)
     }
 }

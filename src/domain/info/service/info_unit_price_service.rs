@@ -4,6 +4,7 @@ use crate::core::persistence::info::fixed::unit_price::info_unit_price_api_repos
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::InfoUnitPriceEntity;
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_repository::InfoUnitPriceRepository;
 use crate::domain::info::dto::info_unit_price_upsert_request::InfoUnitPriceUpsertRequest;
+use validator::Validate;
 
 pub async fn get_info_unit_prices() -> Result<InfoUnitPriceEntity> {
     let repo = InfoUnitPriceRepository::new();
@@ -11,6 +12,7 @@ pub async fn get_info_unit_prices() -> Result<InfoUnitPriceEntity> {
 }
 
 pub async fn upsert_info_unit_prices(req: InfoUnitPriceUpsertRequest) -> Result<Value> {
+    req.validate()?;
     let repo = InfoUnitPriceRepository::new();
     upsert_info_unit_prices_with_repo(&repo, req).await
 }

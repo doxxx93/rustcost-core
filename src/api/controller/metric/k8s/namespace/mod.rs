@@ -1,187 +1,164 @@
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     Json,
 };
 use serde_json::Value;
 
-use crate::api::dto::{ApiResponse, metrics_dto::RangeQuery};
-use crate::domain::metric::k8s::namespace::service as metric_k8s_namespace_service;
+use crate::api::util::json::to_json;
+use crate::api::dto::{metrics_dto::RangeQuery, ApiResponse};
+use crate::app_state::AppState;
+use crate::errors::AppError;
 
-pub async fn get_metric_k8s_namespaces_raw(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_raw(q).await?;
-        Ok::<Value, anyhow::Error>(result)
+pub struct K8sNamespaceMetricsController;
+
+impl K8sNamespaceMetricsController {
+    pub async fn get_metric_k8s_namespaces_raw(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_raw(q)
+                .await,
+        )
     }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
+
+    pub async fn get_metric_k8s_namespaces_raw_summary(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_raw_summary(q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespaces_raw_efficiency(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_raw_efficiency(q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_raw(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_raw(namespace, q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_raw_summary(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_raw_summary(namespace, q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_raw_efficiency(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_raw_efficiency(namespace, q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespaces_cost(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_cost(q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespaces_cost_summary(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_cost_summary(q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespaces_cost_trend(
+        State(state): State<AppState>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespaces_cost_trend(q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_cost(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_cost(namespace, q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_cost_summary(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_cost_summary(namespace, q)
+                .await,
+        )
+    }
+
+    pub async fn get_metric_k8s_namespace_cost_trend(
+        State(state): State<AppState>,
+        Path(namespace): Path<String>,
+        Query(q): Query<RangeQuery>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_namespace_cost_trend(namespace, q)
+                .await,
+        )
     }
 }
-
-pub async fn get_metric_k8s_namespaces_raw_summary(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_raw_summary(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespaces_raw_efficiency(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_raw_efficiency(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_raw(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespace_raw(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_raw_summary(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result =
-            metric_k8s_namespace_service::get_metric_k8s_namespace_raw_summary(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_raw_efficiency(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result =
-            metric_k8s_namespace_service::get_metric_k8s_namespace_raw_efficiency(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespaces_cost(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_cost(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespaces_cost_summary(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_cost_summary(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespaces_cost_trend(Query(q): Query<RangeQuery>) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespaces_cost_trend(q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_cost(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result = metric_k8s_namespace_service::get_metric_k8s_namespace_cost(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_cost_summary(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result =
-            metric_k8s_namespace_service::get_metric_k8s_namespace_cost_summary(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub async fn get_metric_k8s_namespace_cost_trend(
-    Path(namespace): Path<String>,
-    Query(q): Query<RangeQuery>,
-) -> Json<ApiResponse<Value>> {
-    match async {
-        let result =
-            metric_k8s_namespace_service::get_metric_k8s_namespace_cost_trend(namespace, q).await?;
-        Ok::<Value, anyhow::Error>(result)
-    }
-    .await
-    {
-        Ok(v) => Json(ApiResponse::ok(v)),
-        Err(e) => Json(ApiResponse::err(e.to_string())),
-    }
-}
-
-pub use get_metric_k8s_namespace_cost as namespace_cost;
-pub use get_metric_k8s_namespace_cost_summary as namespace_cost_summary;
-pub use get_metric_k8s_namespace_cost_trend as namespace_cost_trend;
-pub use get_metric_k8s_namespace_raw as namespace_raw;
-pub use get_metric_k8s_namespace_raw_efficiency as namespace_raw_efficiency;
-pub use get_metric_k8s_namespace_raw_summary as namespace_raw_summary;
-pub use get_metric_k8s_namespaces_cost as namespaces_cost;
-pub use get_metric_k8s_namespaces_cost_summary as namespaces_cost_summary;
-pub use get_metric_k8s_namespaces_cost_trend as namespaces_cost_trend;
-pub use get_metric_k8s_namespaces_raw as namespaces_raw;
-pub use get_metric_k8s_namespaces_raw_efficiency as namespaces_raw_efficiency;
-pub use get_metric_k8s_namespaces_raw_summary as namespaces_raw_summary;

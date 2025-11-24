@@ -11,6 +11,7 @@ use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
+use validator::Validate;
 
 pub async fn get_info_k8s_pod(pod_uid: String) -> Result<InfoPodEntity> {
     let repo = InfoPodRepository::new();
@@ -148,6 +149,7 @@ pub async fn patch_info_k8s_pod(
     id: String,
     patch: InfoK8sPodPatchRequest,
 ) -> Result<serde_json::Value> {
+    patch.validate()?;
     let repo = InfoPodRepository::new();
 
     // 1️⃣ Load existing record
