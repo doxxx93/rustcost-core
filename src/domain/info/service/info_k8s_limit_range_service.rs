@@ -8,6 +8,6 @@ pub async fn get_k8s_limit_ranges() -> Result<Value> {
     let client = build_client()?;
 
     let v = client_k8s_limit_range::fetch_limit_ranges(&token, &client).await?;
-    Ok(v)
+    Ok(serde_json::to_value(v)?)
 }
 

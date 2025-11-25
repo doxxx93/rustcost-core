@@ -1,5 +1,5 @@
-use crate::core::client::k8s::util::{build_client, read_token};
-use crate::core::client::k8s::client_k8s_node::{fetch_node_summary, fetch_nodes};
+use crate::core::client::kube_client::build_kube_client;
+use crate::core::client::nodes::{fetch_node_summary, fetch_nodes};
 use crate::scheduler::tasks::collectors::k8s::node::task::{handle_node, update_node_info};
 use crate::scheduler::tasks::collectors::k8s::pod::task::handle_pod;
 use crate::scheduler::tasks::collectors::k8s::summary_dto::Summary;
@@ -12,18 +12,17 @@ use crate::scheduler::tasks::collectors::k8s::container::task::handle_container;
 pub async fn run(now: DateTime<Utc>) -> Result<()> {
     debug!("Starting K8s node stats task...");
 
-    // --- Build client & token ---
-    let token = read_token()?;
-    let client = build_client()?;
+    // --- Build kube client ---
+    let client = build_kube_client().await?;
 
     // --- Step 1: Fetch all nodes ---
-    let node_list = fetch_nodes(&token, &client).await?;
+    let node_list = fetch_nodes(&client).await?;
 
     // --- Step 2: For each node, call /proxy/stats/summary ---
-    for node in node_list.items {
-        let node_name = node.metadata.name.clone();
+    for node in node_list {
+        let node_name = node.metadata.name.clone().unwrap_or_default();
 
-        match fetch_node_summary(&token, &client, &node_name).await {
+        match fetch_node_summary::<Summary>(&client, &node_name).await {
             Ok(summary) => {
                 match handle_summary(&summary, now).await {
                     Ok(result) => {

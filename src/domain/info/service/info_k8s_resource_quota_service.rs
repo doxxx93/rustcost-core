@@ -8,6 +8,6 @@ pub async fn get_k8s_resource_quotas() -> Result<Value> {
     let client = build_client()?;
 
     let v = client_k8s_resource_quota::fetch_resource_quotas(&token, &client).await?;
-    Ok(v)
+    Ok(serde_json::to_value(v)?)
 }
 

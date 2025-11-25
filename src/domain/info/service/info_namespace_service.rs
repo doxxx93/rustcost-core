@@ -8,5 +8,5 @@ pub async fn get_k8s_namespaces() -> Result<Value> {
     let client = build_client()?;
 
     let namespaces = client_k8s_namespace::fetch_namespaces(&token, &client).await?;
-    Ok(namespaces)
+    Ok(serde_json::to_value(namespaces)?)
 }

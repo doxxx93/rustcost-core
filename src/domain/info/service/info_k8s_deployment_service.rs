@@ -8,6 +8,6 @@ pub async fn get_k8s_deployments() -> Result<Value> {
     let client = build_client()?;
 
     let deployments = client_k8s_deployment::fetch_deployments(&token, &client).await?;
-    Ok(deployments)
+    Ok(serde_json::to_value(deployments)?)
 }
 
