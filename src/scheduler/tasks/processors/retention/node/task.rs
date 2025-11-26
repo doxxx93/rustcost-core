@@ -5,7 +5,6 @@ use anyhow::{Result};
 use chrono::{DateTime, Utc};
 use tracing::{debug, error};
 
-use crate::core::persistence::metrics::k8s::node::day::metric_node_day_fs_adapter::MetricNodeDayFsAdapter;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_repository::MetricNodeDayRepository;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_retention_repository_traits::MetricNodeDayRetentionRepository;
 use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_fs_adapter::MetricNodeHourFsAdapter;
