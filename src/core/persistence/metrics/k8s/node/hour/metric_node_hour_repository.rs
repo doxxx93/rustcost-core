@@ -44,7 +44,7 @@ impl MetricNodeHourProcessorRepository for MetricNodeHourRepository {
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, node_name: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
+    fn append_row_aggregated(&self, node_name: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
         todo!()
     }
 }

@@ -7,6 +7,6 @@ use crate::core::persistence::metrics::metric_fs_adapter_base_trait::MetricFsAda
 pub trait MetricNodeDayProcessorRepository: Send + Sync {
     fn fs_adapter(&self) -> &dyn MetricFsAdapterBase<MetricNodeEntity>;
 
-    fn append_row_aggregated(&self, node_key: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()>;
+    fn append_row_aggregated(&self, node_key: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()>;
 
 }

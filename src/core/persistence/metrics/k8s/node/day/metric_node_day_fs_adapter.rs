@@ -84,8 +84,8 @@ impl MetricNodeDayFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeDayFsAdapter {
-    fn append_row(&self, node: &str, dto: &MetricNodeEntity) -> Result<()> {
-        let now_date = Utc::now().date_naive();
+    fn append_row(&self, node: &str, dto: &MetricNodeEntity, now: DateTime<Utc>) -> Result<()> {
+        let now_date = now.date_naive();
         let path_str = self.build_path_for(node, now_date);
         let path = Path::new(&path_str);
 
@@ -142,6 +142,7 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeDayFsAdapter {
         node_uid: &str,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
+        now: DateTime<Utc>
     ) -> Result<()> {
         // --- 1️⃣ Load hour data
         let hour_adapter = MetricNodeHourFsAdapter;
@@ -199,7 +200,7 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeDayFsAdapter {
         };
 
         // --- 3️⃣ Append the aggregated row into the day-level file
-        self.append_row(node_uid, &aggregated)?;
+        self.append_row(node_uid, &aggregated, now)?;
 
         Ok(())
     }

@@ -45,8 +45,8 @@ impl MetricNodeMinuteCollectorRepository for MetricNodeMinuteRepository {
         &self.adapter
     }
 
-    fn append_row(&self, node_name: &str, data: &MetricNodeEntity) -> Result<()> {
-        self.adapter.append_row(node_name, data).map_err(|err| {
+    fn append_row(&self, node_name: &str, data: &MetricNodeEntity, now: DateTime<Utc>) -> Result<()> {
+        self.adapter.append_row(node_name, data, now).map_err(|err| {
             error!(error = %err, node_name, "Failed to append node minute row");
             err
         })

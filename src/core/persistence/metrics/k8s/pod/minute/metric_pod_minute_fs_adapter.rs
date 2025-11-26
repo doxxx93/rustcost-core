@@ -82,8 +82,8 @@ impl MetricPodMinuteFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricPodEntity> for MetricPodMinuteFsAdapter {
-    fn append_row(&self, pod: &str, dto: &MetricPodEntity) -> Result<()> {
-        let now_date = Utc::now().date_naive();
+    fn append_row(&self, pod: &str, dto: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
+        let now_date = now.date_naive();
         let path_str = self.build_path_for(pod, now_date);
         let path = Path::new(&path_str);
 

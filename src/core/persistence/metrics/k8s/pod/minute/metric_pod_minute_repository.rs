@@ -54,8 +54,8 @@ impl MetricPodMinuteCollectorRepository for MetricPodMinuteRepository {
         &self.adapter
     }
 
-    fn append_row(&self, pod_uid: &str, data: &MetricPodEntity) -> Result<()> {
-        self.adapter.append_row(pod_uid, data).map_err(|err| {
+    fn append_row(&self, pod_uid: &str, data: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
+        self.adapter.append_row(pod_uid, data, now).map_err(|err| {
             error!(error = %err, pod_uid, "Failed to append pod minute row");
             err
         })

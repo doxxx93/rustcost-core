@@ -21,7 +21,7 @@ pub async fn handle_node(summary: &Summary, now: DateTime<Utc>) -> Result<bool, 
     let metric_repo = MetricNodeMinuteCollectorRepositoryImpl {
         adapter: MetricNodeMinuteFsAdapter,
     };
-    metric_repo.append_row(node_name, &metrics_dto)?; // ✅ correct method
+    metric_repo.append_row(node_name, &metrics_dto, now)?; // ✅ correct method
 
     Ok(created)
 }

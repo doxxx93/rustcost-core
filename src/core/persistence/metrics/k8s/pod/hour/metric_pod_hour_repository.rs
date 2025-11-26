@@ -53,7 +53,7 @@ impl MetricPodHourProcessorRepository for MetricPodHourRepository {
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
+    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
         todo!()
     }
 }

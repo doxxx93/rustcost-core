@@ -59,7 +59,7 @@ pub async fn handle_container(summary: &Summary, now: DateTime<Utc>) -> Result<b
                 adapter: MetricContainerMinuteFsAdapter,
             };
             let metrics_dto = map_container_summary_to_metrics(container, now);
-            metric_repo.append_row(&container_key, &metrics_dto)?;
+            metric_repo.append_row(&container_key, &metrics_dto, now)?;
         }
     }
 

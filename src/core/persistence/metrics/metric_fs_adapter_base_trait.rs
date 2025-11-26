@@ -7,14 +7,14 @@ pub trait MetricFsAdapterBase<T>: Send + Sync {
     // === Collector-like ===
     /// Append one raw metric row (e.g. per-minute data)
     #[allow(unused_variables)]
-    fn append_row(&self, name: &str, data: &T) -> Result<()> {
+    fn append_row(&self, name: &str, data: &T, now: DateTime<Utc>) -> Result<()> {
         unimplemented!("append_row not used in this adapter")
     }
 
     // === Processor-like ===
     /// Append aggregated metrics (e.g. hour, day)
     #[allow(unused_variables)]
-    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
+    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
         unimplemented!("append_row_aggregated not used in this adapter")
     }
 

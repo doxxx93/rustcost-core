@@ -13,7 +13,7 @@ impl MetricNodeDayProcessorRepository for MetricNodeDayProcessorRepositoryImpl  
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, node_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> anyhow::Result<()> {
-        self.adapter.append_row_aggregated(node_uid, start, end)
+    fn append_row_aggregated(&self, node_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> anyhow::Result<()> {
+        self.adapter.append_row_aggregated(node_uid, start, end, now)
     }
 }

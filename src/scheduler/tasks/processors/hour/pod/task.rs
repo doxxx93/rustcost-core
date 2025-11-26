@@ -36,7 +36,7 @@ pub async fn process_pod_minute_to_hour(now: DateTime<Utc>) -> Result<()> {
         adapter: MetricPodHourFsAdapter,
     };
 
-    process_all_pods(&repo, &pod_uids, start, end);
+    process_all_pods(&repo, &pod_uids, start, end, now);
     Ok(())
 }
 
@@ -63,9 +63,10 @@ fn process_all_pods<R: MetricPodHourProcessorRepository>(
     pod_uids: &[String],
     start: chrono::DateTime<Utc>,
     end: chrono::DateTime<Utc>,
+    now: DateTime<Utc>
 ) {
     for pod_uid in pod_uids {
-        match repo.append_row_aggregated(pod_uid, start, end) {
+        match repo.append_row_aggregated(pod_uid, start, end, now) {
             Ok(_) => debug!(
                 "✅ Aggregated pod '{}' minute metrics from {} → {}",
                 pod_uid, start, end

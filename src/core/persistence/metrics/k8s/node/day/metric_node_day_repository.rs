@@ -44,7 +44,7 @@ impl MetricNodeDayProcessorRepository for MetricNodeDayRepository {
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, node_key: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
+    fn append_row_aggregated(&self, node_key: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
         todo!()
     }
 }

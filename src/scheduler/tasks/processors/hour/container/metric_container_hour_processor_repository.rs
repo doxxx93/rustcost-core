@@ -13,7 +13,7 @@ impl MetricContainerHourProcessorRepository for MetricContainerHourProcessorRepo
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, container_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> anyhow::Result<()> {
-        self.adapter.append_row_aggregated(container_uid, start, end)
+    fn append_row_aggregated(&self, container_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> anyhow::Result<()> {
+        self.adapter.append_row_aggregated(container_uid, start, end, now)
     }
 }

@@ -7,6 +7,6 @@ use chrono::{DateTime, Utc};
 pub trait MetricPodHourProcessorRepository: Send + Sync {
     fn fs_adapter(&self) -> &dyn MetricFsAdapterBase<MetricPodEntity>;
 
-    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()>;
+    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()>;
 
 }

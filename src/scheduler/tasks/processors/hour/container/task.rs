@@ -35,7 +35,7 @@ pub async fn process_container_minute_to_hour(now: DateTime<Utc>) -> Result<()> 
         adapter: MetricContainerHourFsAdapter,
     };
 
-    process_all_containers(&repo, &container_keys, start, end);
+    process_all_containers(&repo, &container_keys, start, end, now);
     Ok(())
 }
 
@@ -62,9 +62,10 @@ fn process_all_containers<R: MetricContainerHourProcessorRepository>(
     container_keys: &[String],
     start: chrono::DateTime<Utc>,
     end: chrono::DateTime<Utc>,
+    now: DateTime<Utc>
 ) {
     for container_key in container_keys {
-        match repo.append_row_aggregated(container_key, start, end) {
+        match repo.append_row_aggregated(container_key, start, end, now) {
             Ok(_) => debug!(
                 "✅ Aggregated container '{}' minute metrics from {} → {}",
                 container_key, start, end

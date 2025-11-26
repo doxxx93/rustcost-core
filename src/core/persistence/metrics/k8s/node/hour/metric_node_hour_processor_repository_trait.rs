@@ -7,6 +7,6 @@ use chrono::{DateTime, Utc};
 pub trait MetricNodeHourProcessorRepository: Send + Sync {
     fn fs_adapter(&self) -> &dyn MetricFsAdapterBase<MetricNodeEntity>;
 
-    fn append_row_aggregated(&self, node_name: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()>;
+    fn append_row_aggregated(&self, node_name: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()>;
 
 }

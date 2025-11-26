@@ -41,7 +41,7 @@ pub async fn handle_pod(summary: &Summary, now: DateTime<Utc>) -> Result<bool> {
             adapter: MetricPodMinuteFsAdapter,
         };
         let metrics_dto = map_pod_summary_to_metrics(pod, now);
-        metric_repo.append_row(pod_uid, &metrics_dto)?;
+        metric_repo.append_row(pod_uid, &metrics_dto, now)?;
     }
 
     Ok(any_created)

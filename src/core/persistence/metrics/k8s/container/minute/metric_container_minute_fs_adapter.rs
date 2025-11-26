@@ -74,8 +74,8 @@ impl MetricContainerMinuteFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricContainerEntity> for MetricContainerMinuteFsAdapter {
-    fn append_row(&self, container: &str, dto: &MetricContainerEntity) -> Result<()> {
-        let now_date = Utc::now().date_naive();
+    fn append_row(&self, container: &str, dto: &MetricContainerEntity, now: DateTime<Utc>) -> Result<()> {
+        let now_date = now.date_naive();
         let path_str = self.build_path_for(container, now_date);
         let path = Path::new(&path_str);
 

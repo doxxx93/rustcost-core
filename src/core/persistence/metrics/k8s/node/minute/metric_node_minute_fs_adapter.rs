@@ -126,7 +126,7 @@ impl MetricNodeMinuteFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeMinuteFsAdapter {
-    fn append_row(&self, node: &str, dto: &MetricNodeEntity) -> Result<()> {
+    fn append_row(&self, node: &str, dto: &MetricNodeEntity, now: DateTime<Utc>) -> Result<()> {
 
         let now_date = Utc::now().date_naive();
         let path_str = self.build_path_for(node, now_date);

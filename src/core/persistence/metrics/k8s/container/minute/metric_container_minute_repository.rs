@@ -55,8 +55,8 @@ impl MetricContainerMinuteCollectorRepository for MetricContainerMinuteRepositor
         &self.adapter
     }
 
-    fn append_row(&self, container_key: &str, data: &MetricContainerEntity) -> Result<()> {
-        self.adapter.append_row(container_key, data).map_err(|err| {
+    fn append_row(&self, container_key: &str, data: &MetricContainerEntity, now: DateTime<Utc>) -> Result<()> {
+        self.adapter.append_row(container_key, data, now).map_err(|err| {
             error!(error = %err, container_key, "Failed to append container minute row");
             err
         })

@@ -84,8 +84,8 @@ impl MetricPodDayFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
-    fn append_row(&self, pod: &str, dto: &MetricPodEntity) -> Result<()> {
-        let now_date = Utc::now().date_naive();
+    fn append_row(&self, pod: &str, dto: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
+        let now_date = now.date_naive();
         let path_str = self.build_path_for(pod, now_date);
         let path = Path::new(&path_str);
 
@@ -146,6 +146,7 @@ impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
         pod_uid: &str,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
+        now: DateTime<Utc>
     ) -> Result<()> {
         // --- 1️⃣ Load hour data
         let hour_adapter = MetricPodHourFsAdapter;
@@ -209,7 +210,7 @@ impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
         };
 
         // --- 3️⃣ Append the aggregated row into the day-level file
-        self.append_row(pod_uid, &aggregated)?;
+        self.append_row(pod_uid, &aggregated, now)?;
 
         Ok(())
     }

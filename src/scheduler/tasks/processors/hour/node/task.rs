@@ -36,7 +36,7 @@ pub async fn process_node_minute_to_hour(now: DateTime<Utc>) -> Result<()> {
         adapter: MetricNodeHourFsAdapter,
     };
 
-    process_all_nodes(&repo, &node_names, start, end);
+    process_all_nodes(&repo, &node_names, start, end, now);
     Ok(())
 }
 
@@ -62,11 +62,12 @@ fn collect_node_names(base_dir: &PathBuf) -> Result<Vec<String>> {
 fn process_all_nodes<R: MetricNodeHourProcessorRepository>(
     repo: &R,
     node_names: &[String],
-    start: chrono::DateTime<Utc>,
-    end: chrono::DateTime<Utc>,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    now: DateTime<Utc>
 ) {
     for node_name in node_names {
-        match repo.append_row_aggregated(node_name, start, end) {
+        match repo.append_row_aggregated(node_name, start, end, now) {
             Ok(_) => debug!(
                 "✅ Aggregated node '{}' minute metrics from {} → {}",
                 node_name, start, end

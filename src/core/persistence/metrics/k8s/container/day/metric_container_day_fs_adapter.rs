@@ -73,8 +73,8 @@ impl MetricContainerDayFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricContainerEntity> for MetricContainerDayFsAdapter {
-    fn append_row(&self, container: &str, dto: &MetricContainerEntity) -> Result<()> {
-        let now_date = Utc::now().date_naive();
+    fn append_row(&self, container: &str, dto: &MetricContainerEntity, now: DateTime<Utc>) -> Result<()> {
+        let now_date = now.date_naive();
         let path_str = self.build_path_for(container, now_date);
         let path = Path::new(&path_str);
 
@@ -128,8 +128,8 @@ impl MetricFsAdapterBase<MetricContainerEntity> for MetricContainerDayFsAdapter 
         container_uid: &str,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
+        now: DateTime<Utc>
     ) -> Result<()> {
-        // --- 1️⃣ Load hour data
         let hour_adapter = MetricContainerHourFsAdapter;
         let rows = hour_adapter.get_row_between(start, end, container_uid, None, None)?;
 
@@ -137,53 +137,70 @@ impl MetricFsAdapterBase<MetricContainerEntity> for MetricContainerDayFsAdapter 
             return Err(anyhow!("no hour data found for aggregation"));
         }
 
-        // --- 2️⃣ Compute aggregates
-        let first = rows.first().unwrap();
-        let last = rows.last().unwrap();
+        // ---- 1️⃣ one-pass aggregation (FAST)
+        let mut count = 0_u64;
 
-        let avg = |f: fn(&MetricContainerEntity) -> Option<u64>| -> Option<u64> {
-            let (sum, count): (u64, u64) =
-                rows.iter().filter_map(f).fold((0, 0), |(s, c), v| (s + v, c + 1));
-            if count > 0 {
-                Some(sum / count)
-            } else {
-                None
-            }
+        // sums
+        let mut cpu_usage_sum = 0_u64;
+        let mut mem_usage_sum = 0_u64;
+        let mut mem_ws_sum = 0_u64;
+        let mut mem_rss_sum = 0_u64;
+        let mut fs_used_sum = 0_u64;
+        let mut fs_inodes_used_sum = 0_u64;
+
+        // first & last for delta tracking
+        let first = &rows[0];
+        let last  = rows.last().unwrap();
+
+        for r in &rows {
+            // avg fields
+            if let Some(v) = r.cpu_usage_nano_cores       { cpu_usage_sum += v; }
+            if let Some(v) = r.memory_usage_bytes         { mem_usage_sum += v; }
+            if let Some(v) = r.memory_working_set_bytes   { mem_ws_sum += v; }
+            if let Some(v) = r.memory_rss_bytes           { mem_rss_sum += v; }
+            if let Some(v) = r.fs_used_bytes              { fs_used_sum += v; }
+            if let Some(v) = r.fs_inodes_used             { fs_inodes_used_sum += v; }
+            count += 1;
+        }
+
+        let avg_or_none = |sum: u64| -> Option<u64> {
+            if count > 0 { Some(sum / count) } else { None }
         };
 
+        // ---- 2️⃣ deltas (with counter reset detection)
         let delta = |f: fn(&MetricContainerEntity) -> Option<u64>| -> Option<u64> {
             match (f(first), f(last)) {
-                (Some(a), Some(b)) if b >= a => Some(b - a),
+                (Some(a), Some(b)) => {
+                    // if counter reset → treat as new counter
+                    if b >= a { Some(b - a) } else { Some(b) }
+                }
                 _ => None,
             }
         };
 
+        // ---- 3️⃣ final aggregated entity
         let aggregated = MetricContainerEntity {
-            time: end, // time marker = end of the aggregation window
+            time: end,
 
-            // CPU
-            cpu_usage_nano_cores: avg(|r| r.cpu_usage_nano_cores),
-            cpu_usage_core_nano_seconds: delta(|r| r.cpu_usage_core_nano_seconds),
+            cpu_usage_nano_cores:            avg_or_none(cpu_usage_sum),
+            cpu_usage_core_nano_seconds:     delta(|r| r.cpu_usage_core_nano_seconds),
 
-            // Memory
-            memory_usage_bytes: avg(|r| r.memory_usage_bytes),
-            memory_working_set_bytes: avg(|r| r.memory_working_set_bytes),
-            memory_rss_bytes: avg(|r| r.memory_rss_bytes),
-            memory_page_faults: delta(|r| r.memory_page_faults),
+            memory_usage_bytes:              avg_or_none(mem_usage_sum),
+            memory_working_set_bytes:        avg_or_none(mem_ws_sum),
+            memory_rss_bytes:                avg_or_none(mem_rss_sum),
+            memory_page_faults:              delta(|r| r.memory_page_faults),
 
-            // Ephemeral filesystem
-            fs_used_bytes: avg(|r| r.fs_used_bytes),
-            fs_capacity_bytes: last.fs_capacity_bytes,
-            fs_inodes_used: avg(|r| r.fs_inodes_used),
-            fs_inodes: last.fs_inodes,
+            fs_used_bytes:                   avg_or_none(fs_used_sum),
+            fs_capacity_bytes:               last.fs_capacity_bytes,
+            fs_inodes_used:                  avg_or_none(fs_inodes_used_sum),
+            fs_inodes:                       last.fs_inodes,
         };
 
-        // --- 3️⃣ Append the aggregated row into the day-level file
-        self.append_row(container_uid, &aggregated)?;
+        // ---- 4️⃣ append row into correct day file
+        self.append_row(container_uid, &aggregated, now)?;
 
         Ok(())
     }
-
 
 
     fn cleanup_old(&self, container_key: &str, before: DateTime<Utc>) -> Result<()> {

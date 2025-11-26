@@ -36,7 +36,7 @@ pub async fn process_pod_hour_to_day(now: DateTime<Utc>) -> Result<()> {
         adapter: MetricPodDayFsAdapter,
     };
 
-    process_all_pods(&repo, &pod_uids, start, end);
+    process_all_pods(&repo, &pod_uids, start, end, now);
     Ok(())
 }
 
@@ -63,11 +63,12 @@ fn collect_pod_uids(base_dir: &PathBuf) -> Result<Vec<String>> {
 fn process_all_pods<R: MetricPodDayProcessorRepository>(
     repo: &R,
     pod_uids: &[String],
-    start: chrono::DateTime<Utc>,
-    end: chrono::DateTime<Utc>,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    now: DateTime<Utc>
 ) {
     for pod_uid in pod_uids {
-        match repo.append_row_aggregated(pod_uid, start, end) {
+        match repo.append_row_aggregated(pod_uid, start, end, now) {
             Ok(_) => debug!(
                 "✅ Aggregated pod '{}' minute metrics from {} → {}",
                 pod_uid, start, end

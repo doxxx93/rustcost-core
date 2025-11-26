@@ -13,7 +13,7 @@ impl MetricPodDayProcessorRepository for MetricPodDayProcessorRepositoryImpl  {
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> anyhow::Result<()> {
-        self.adapter.append_row_aggregated(pod_uid, start, end)
+    fn append_row_aggregated(&self, pod_uid: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> anyhow::Result<()> {
+        self.adapter.append_row_aggregated(pod_uid, start, end, now)
     }
 }

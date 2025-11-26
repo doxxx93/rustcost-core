@@ -53,7 +53,7 @@ impl MetricContainerDayProcessorRepository for MetricContainerDayRepository {
         &self.adapter
     }
 
-    fn append_row_aggregated(&self, container_key: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
+    fn append_row_aggregated(&self, container_key: &str, start: DateTime<Utc>, end: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
         todo!()
     }
 }
