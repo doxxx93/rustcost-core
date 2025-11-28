@@ -8,6 +8,6 @@ pub async fn get_k8s_persistent_volumes() -> Result<Value> {
     let client = build_client()?;
 
     let v = client_k8s_persistent_volume::fetch_persistent_volumes(&token, &client).await?;
-    Ok(v)
+    Ok(serde_json::to_value(v)?)
 }
 

@@ -3,9 +3,10 @@ use crate::core::persistence::info::k8s::node::info_node_collector_repository_tr
 use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_collector_repository_trait::MetricNodeMinuteCollectorRepository;
 use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_fs_adapter::MetricNodeMinuteFsAdapter;
 use crate::scheduler::tasks::collectors::k8s::node::info_node_minute_collector_repository::InfoNodeCollectorRepositoryImpl;
-use crate::core::client::k8s::client_k8s_node_mapper::{map_node_to_node_info_entity, map_summary_to_metrics, map_summary_to_node_info};
+use crate::scheduler::tasks::collectors::k8s::node::mappers::{map_summary_to_metrics, map_summary_to_node_info};
+use crate::core::client::mappers::map_node_to_info_entity;
 use crate::scheduler::tasks::collectors::k8s::node::metric_node_minute_collector_repository::MetricNodeMinuteCollectorRepositoryImpl;
-use crate::core::client::k8s::client_k8s_node_dto::Node;
+use crate::core::client::kube_resources::Node;
 use crate::scheduler::tasks::collectors::k8s::summary_dto::Summary;
 
 pub async fn handle_node(summary: &Summary, now: DateTime<Utc>) -> Result<bool, anyhow::Error> {
@@ -36,10 +37,10 @@ pub async fn update_node_info(
     node: Node,
     now: DateTime<Utc>,
 ) -> anyhow::Result<()> {
-    
+
     let repo = InfoNodeCollectorRepositoryImpl::default();
 
-    let node_info = map_node_to_node_info_entity(&node, now)?;
+    let node_info = map_node_to_info_entity(&node)?;
 
     repo.update(&node_info)
         .expect("Failed to update node info in InfoNodeCollectorRepository");

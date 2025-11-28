@@ -125,7 +125,7 @@ pub async fn list_k8s_pods(filter: K8sListQuery) -> Result<Vec<InfoPodEntity>> {
     // 4️⃣ Map API pods → entities, update repo, and merge results
     let mut result_entities = cached_entities;
     for pod in pod_list.items {
-        let pod_uid = pod.metadata.uid.clone();
+        let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
         let mapped = map_pod_to_info_pod_entity(&pod)?;
         // If we have cached data, merge fields instead of overwriting
         let merged = if let Ok(mut existing) = repo.read(&pod_uid) {

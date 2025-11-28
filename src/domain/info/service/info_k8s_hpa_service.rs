@@ -8,6 +8,6 @@ pub async fn get_k8s_hpas() -> Result<Value> {
     let client = build_client()?;
 
     let v = client_k8s_hpa::fetch_horizontal_pod_autoscalers(&token, &client).await?;
-    Ok(v)
+    Ok(serde_json::to_value(v)?)
 }
 

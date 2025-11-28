@@ -1,6 +1,6 @@
-use crate::core::client::k8s::client_k8s_node::{fetch_node_by_name, fetch_nodes};
-use crate::core::client::k8s::client_k8s_node_mapper::map_node_to_node_info_entity;
-use crate::core::client::k8s::util::{build_client, read_token};
+use crate::core::client::kube_client::build_kube_client;
+use crate::core::client::nodes::{fetch_node_by_name, fetch_nodes};
+use crate::core::client::mappers::map_node_to_info_entity;
 use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository;
@@ -28,12 +28,11 @@ pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
         debug!("Node '{}' info is missing or stale — refreshing from K8s API", node_name);
 
         // Build K8s client
-        let token = read_token()?;
-        let client = build_client()?;
+        let client = build_kube_client().await?;
 
         // Fetch from K8s API
-        let node = fetch_node_by_name(&token, &client, &node_name).await?;
-        let updated_entity = map_node_to_node_info_entity(&node, now)?;
+        let node = fetch_node_by_name(&client, &node_name).await?;
+        let updated_entity = map_node_to_info_entity(&node)?;
 
         // Save refreshed info
         repo.update(&updated_entity)?;
@@ -61,8 +60,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
     let now = Utc::now();
     debug!("Listing all Kubernetes nodes");
 
-    let token = read_token()?;
-    let client = build_client()?;
+    let client = build_kube_client().await?;
     let repo = InfoNodeRepository::new();
 
     let mut cached_entities = Vec::new();
@@ -99,17 +97,17 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
 
     // 3️⃣ Fetch from Kubernetes API
     debug!("🌐 Fetching nodes from K8s API (some cache expired or missing)");
-    let node_list = fetch_nodes(&token, &client).await?;
-    debug!("Fetched {} node(s) from API", node_list.items.len());
+    let node_list = fetch_nodes(&client).await?;
+    debug!("Fetched {} node(s) from API", node_list.len());
 
     let mut result_entities = cached_entities;
 
     // 4️⃣ Process each node
-    for node in node_list.items {
-        let node_name = node.metadata.name.clone();
+    for node in node_list {
+        let node_name = node.metadata.name.clone().unwrap_or_default();
 
         // Map API → entity
-        let mapped = map_node_to_node_info_entity(&node, now)?;
+        let mapped = map_node_to_info_entity(&node)?;
 
         // If cache exists → merge
         let merged = if let Ok(mut existing) = repo.read(&node_name) {
@@ -121,7 +119,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
 
         // Save merged result
         if let Err(e) = repo.update(&merged) {
-            debug!("⚠️ Failed to update node '{}': {:?}", node_name, e);
+            debug!("⚠️ Failed to update node '{}': {:?}", &node_name, e);
         }
 
         result_entities.push(merged);
