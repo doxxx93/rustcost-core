@@ -1,4 +1,4 @@
-use axum::{extract::{State}, Json};
+use axum::{extract::State, Json};
 use serde_json::{json, Value};
 use crate::api::dto::ApiResponse;
 use crate::api::util::json::to_json;
@@ -12,8 +12,8 @@ impl K8sStateController {
     pub async fn get_full(
         State(state): State<AppState>,
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
-        let s = state.k8s_state.repo.get().await;
-        to_json(Ok(json!(s)))
+        let s = state.k8s_state.repo.get().await;   // Arc<K8sRuntimeState>
+        to_json(Ok(json!(&*s)))              // FIX: serialize the inner value
     }
 
     pub async fn get_summary(
@@ -21,12 +21,19 @@ impl K8sStateController {
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
         let s = state.k8s_state.repo.get().await;
 
+        // calculate container count
+        let container_count: usize = s
+            .pods
+            .values()
+            .map(|p| p.containers.len())
+            .sum();
+
         to_json(Ok(json!({
-            "nodes": s.node_count,
-            "namespaces": s.namespace_count,
-            "deployments": s.deployment_count,
-            "pods": s.pod_count,
-            "containers": s.container_count,
+            "nodes": s.nodes.len(),
+            "namespaces": s.namespaces.len(),
+            "deployments": s.deployments.len(),
+            "pods": s.pods.len(),
+            "containers": container_count,
             "last_discovered_at": s.last_discovered_at,
             "last_error_at": s.last_error_at,
             "last_error_message": s.last_error_message,
