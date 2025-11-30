@@ -86,6 +86,13 @@ macro_rules! delegate_async_service {
             }
         )+
     };
+    ($(fn $name:ident($($arg:ident : $typ:ty),*) -> $ret:ty => $expr:expr;)+) => {
+        $(
+            pub async fn $name(&self, $($arg: $typ),*) -> anyhow::Result<$ret> {
+                $expr.await
+            }
+        )+
+    };
 }
 
 //
@@ -117,7 +124,7 @@ pub fn build_app_state() -> AppState {
 
     AppState {
         log_service: Arc::new(LogService::new(LogRepositoryImpl::new())),
-        system_service: Arc::new(SystemService::default()),
+        system_service: Arc::new(SystemService::new(k8s_state.clone())),
         info_service: Arc::new(InfoService::default()),
         info_k8s_service: Arc::new(InfoK8sService::default()),
         metric_service: Arc::new(MetricService::default()),
@@ -132,15 +139,24 @@ pub fn build_app_state() -> AppState {
 // SYSTEM
 // ============================================================
 //
-#[derive(Clone, Default)]
-pub struct SystemService;
+#[derive(Clone)]
+pub struct SystemService {
+    pub k8s_state: Arc<K8sRuntimeStateManager<K8sRuntimeStateRepository>>,
+}
 
 impl SystemService {
+    pub fn new(k8s_state: Arc<K8sRuntimeStateManager<K8sRuntimeStateRepository>>) -> Self {
+        Self { k8s_state }
+    }
+
     delegate_async_service! {
         fn status() -> serde_json::Value => status;
         fn health() -> serde_json::Value => health;
         fn backup() -> serde_json::Value => backup;
-        fn resync() -> serde_json::Value => resync;
+    }
+
+    pub async fn resync(&self) -> anyhow::Result<serde_json::Value> {
+        resync(self.k8s_state.clone()).await
     }
 }
 
