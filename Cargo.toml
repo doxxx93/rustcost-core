@@ -26,4 +26,5 @@ futures = "0.3"
 http = "1.1"
 base64 = "0.22.1"
 async-trait = "0.1.89"
+thiserror = "2.0.17"
 

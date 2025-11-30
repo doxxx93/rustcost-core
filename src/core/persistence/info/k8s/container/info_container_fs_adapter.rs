@@ -35,6 +35,7 @@ impl InfoDynamicFsAdapterTrait<InfoContainerEntity> for InfoContainerFsAdapter {
                 match key.as_str() {
                     // Identity
                     "POD_UID" => v.pod_uid = Some(val),
+                    "POD_NAME" => v.pod_name = Some(val),
                     "CONTAINER_NAME" => v.container_name = Some(val),
                     "NAMESPACE" => v.namespace = Some(val),
 
@@ -167,6 +168,7 @@ impl InfoContainerFsAdapter {
 
         // ---- Identity ----
         write_field!("POD_UID", data.pod_uid);
+        write_field!("POD_NAME", data.pod_name);
         write_field!("CONTAINER_NAME", data.container_name);
         write_field!("NAMESPACE", data.namespace);
 

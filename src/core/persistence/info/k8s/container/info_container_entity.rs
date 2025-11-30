@@ -11,6 +11,8 @@ pub struct InfoContainerEntity {
     // --- Identity ---
     /// UID of the parent Pod
     pub pod_uid: Option<String>,
+    /// Name of the parent Pod
+    pub pod_name: Option<String>,
     /// Container name (unique within the Pod)
     pub container_name: Option<String>,
     /// Namespace of the Pod
@@ -38,7 +40,7 @@ pub struct InfoContainerEntity {
     /// Exit code if Terminated
     pub exit_code: Option<i32>,
     /// Last restart count
-    pub restart_count: Option<u32>,
+    pub restart_count: Option<i32>,
     /// Whether container is currently ready
     pub ready: Option<bool>,
 
@@ -80,6 +82,7 @@ impl InfoContainerEntity {
     /// Merge container data coming from API, preserving any user-set metadata.
     pub fn merge_from(&mut self, newer: InfoContainerEntity) {
         self.pod_uid = newer.pod_uid.or(self.pod_uid.take());
+        self.pod_name = newer.pod_name.or(self.pod_name.take());
         self.container_name = newer.container_name.or(self.container_name.take());
         self.namespace = newer.namespace.or(self.namespace.take());
 

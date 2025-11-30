@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use kube::{
     api::{Api, ListParams},
-    Client,
 };
 use tracing::{error, info};
 use crate::core::state::runtime::k8s::k8s_runtime_state::RuntimePod;

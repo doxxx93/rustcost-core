@@ -9,12 +9,14 @@ use crate::core::persistence::info::k8s::container::info_container_entity::InfoC
 pub fn map_container_summary_to_info(
     container: &ContainerSummary,
     pod_uid: &str,
+    pod_name: &str,
     namespace: &str,
     node_name: &str,
 ) -> InfoContainerEntity {
     InfoContainerEntity {
         // --- Identity ---
         pod_uid: Some(pod_uid.to_string()),
+        pod_name: Some(pod_name.to_string()),
         container_name: Some(container.name.clone()),
         namespace: Some(namespace.to_string()),
 
@@ -28,7 +30,7 @@ pub fn map_container_summary_to_info(
         node_name: Some(node_name.to_string()),
 
         // --- Bookkeeping ---
-        last_updated_info_at: Some(Utc::now()),
+        last_updated_info_at: None,
         deleted: Some(false),
         last_check_deleted_count: Some(0),
 

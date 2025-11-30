@@ -22,6 +22,7 @@ pub async fn handle_container(summary: &Summary, now: DateTime<Utc>) -> Result<b
     // Step 2: Iterate each pod and its containers
     for pod in pods {
         let pod_uid = &pod.pod_ref.uid;
+        let pod_name = &pod.pod_ref.name;
         let namespace = &pod.pod_ref.namespace;
         let node_name = &summary.node.node_name;
 
@@ -48,7 +49,7 @@ pub async fn handle_container(summary: &Summary, now: DateTime<Utc>) -> Result<b
             // ---- Info section ----
             let info_repo = InfoContainerCollectorRepositoryImpl::default();
             let container_info =
-                map_container_summary_to_info(container, pod_uid, namespace, node_name);
+                map_container_summary_to_info(container, pod_uid, pod_name, namespace, node_name);
             let created = info_repo.create_if_missing(&container_key, &container_info)?;
             if created {
                 any_created = true;
