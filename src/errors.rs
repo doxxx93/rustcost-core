@@ -1,6 +1,7 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use thiserror::Error;
+use crate::api::dto::ApiResponse;
 
 #[allow(dead_code)]
 #[derive(Debug, Error)]
@@ -38,13 +39,21 @@ impl IntoResponse for AppError {
             AppError::K8sApiError(_) => StatusCode::BAD_GATEWAY,
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::NotResynced(_) => StatusCode::SERVICE_UNAVAILABLE, // <-- IMPORTANT
+            AppError::NotResynced(_) => StatusCode::SERVICE_UNAVAILABLE,
         };
 
-        // String provided by thiserror → safe JSON message
-        let body = Json(json!({
-            "message": self.to_string()
-        }));
+        // Extract error components
+        let (code, msg) = match &self {
+            AppError::InternalServerError(m) => ("InternalServerError", m.clone()),
+            AppError::BodyParsingError(m) => ("BodyParsingError", m.clone()),
+            AppError::K8sApiError(m) => ("K8sApiError", m.clone()),
+            AppError::DatabaseError(m) => ("DatabaseError", m.clone()),
+            AppError::NotFound(m) => ("NotFound", m.clone()),
+            AppError::NotResynced(m) => ("NotResynced", m.clone()),
+        };
+
+        // Use your standardized ApiResponse
+        let body = Json(ApiResponse::<()>::err_with_code(code, msg));
 
         (status, body).into_response()
     }
