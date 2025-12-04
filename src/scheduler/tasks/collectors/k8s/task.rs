@@ -6,11 +6,14 @@ use crate::scheduler::tasks::collectors::k8s::summary_dto::Summary;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use tracing::{debug, error};
+use crate::app_state::AppState;
+use crate::scheduler::tasks::alarm::task::handle_alarm;
 use crate::scheduler::tasks::collectors::k8s::container::task::handle_container;
 
 /// Collects node-level stats from the Kubelet `/stats/summary` endpoint.
-pub async fn run(now: DateTime<Utc>) -> Result<()> {
+pub async fn run(state: AppState, now: DateTime<Utc>) -> Result<()> {
     debug!("Starting K8s node stats task...");
+    let state_clone = state.clone();
 
     // --- Build kube client ---
     let client = build_kube_client().await?;
@@ -24,7 +27,8 @@ pub async fn run(now: DateTime<Utc>) -> Result<()> {
 
         match fetch_node_summary::<Summary>(&client, &node_name).await {
             Ok(summary) => {
-                match handle_summary(&summary, now).await {
+
+                match handle_summary(&state_clone, &summary, now).await {
                     Ok(result) => {
 
                         // if new node
@@ -54,7 +58,7 @@ pub struct SummaryHandleResultDto {
 
 
 /// Handle and persist one `/stats/summary` response
-pub async fn handle_summary(summary: &Summary, now: DateTime<Utc>) -> Result<SummaryHandleResultDto> {
+pub async fn handle_summary(state: &AppState, summary: &Summary, now: DateTime<Utc>) -> Result<SummaryHandleResultDto> {
     let mut result = SummaryHandleResultDto::default();
 
     if handle_node(summary, now).await? {
@@ -63,6 +67,7 @@ pub async fn handle_summary(summary: &Summary, now: DateTime<Utc>) -> Result<Sum
 
     handle_pod(summary, now).await?;
     handle_container(summary, now).await?;
+    handle_alarm(state, summary, now).await?;
 
     Ok(result)
 }
@@ -92,7 +97,7 @@ mod tests {
 
         // Run async code inside the same thread (so debugger can attach)
         rt.block_on(async {
-            let result = run().await;
+            let result = run(Default::default(), Default::default()).await;
             // Allow both Ok and Err but ensure no panic
             assert!(result.is_ok() || result.is_err());
         });

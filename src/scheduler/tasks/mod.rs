@@ -5,6 +5,7 @@ mod hour;
 mod day;
 pub mod info;
 mod utils;
+mod alarm;
 
 pub use day::run as day_task;
 pub use hour::run as hour_task;

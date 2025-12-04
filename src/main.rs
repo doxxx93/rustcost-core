@@ -38,6 +38,8 @@ async fn main() {
 /// ✅ Run the Axum server
 async fn run_server(app_config: &crate::config::Config) {
     let app_state = build_app_state();
+    let scheduler_state  = app_state.clone();
+
     let app = app_router().with_state(app_state);
     let address = format!("{}:{}", app_config.server_host(), app_config.server_port());
     let socket_addr: SocketAddr = address.parse().expect("Invalid socket address");
@@ -60,7 +62,7 @@ async fn run_server(app_config: &crate::config::Config) {
         // Run the scheduler as a background task that blocks until it receives shutdown
         let sched_rx = shutdown_rx.resubscribe();
         tokio::spawn(async move {
-            scheduler_start_all_tasks(sched_rx).await;
+            scheduler_start_all_tasks(scheduler_state , sched_rx).await;
         });
     }
 

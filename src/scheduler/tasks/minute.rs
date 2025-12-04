@@ -1,8 +1,9 @@
 use anyhow::Result;
 use chrono::Utc;
 use tracing::{debug, error};
+use crate::app_state::AppState;
 
-pub async fn run() -> Result<()> {
+pub async fn run(state: AppState) -> Result<()> {
     let now = Utc::now();
     debug!("Running minutely task (collectors + summarizers)...");
 
@@ -13,7 +14,7 @@ pub async fn run() -> Result<()> {
 
 
     // --- Collectors ---
-    if let Err(e) = super::collectors::k8s::run(now).await {
+    if let Err(e) = super::collectors::k8s::run(state, now).await {
         error!(?e, "K8s collector failed");
     }
 

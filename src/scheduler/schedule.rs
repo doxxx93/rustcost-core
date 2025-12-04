@@ -6,25 +6,53 @@ use tokio::sync::broadcast;
 use tokio::time::{interval, sleep, Duration, MissedTickBehavior};
 use tracing::{debug, error, info, warn};
 use chrono::{Duration as ChronoDuration};
+use crate::app_state::AppState;
 
 /// Entry point — start all periodic background tasks.
 /// Call this once from your main() function.
-pub async fn scheduler_start_all_tasks(mut shutdown: broadcast::Receiver<()>) {
+pub async fn scheduler_start_all_tasks(
+    state: AppState,
+    mut shutdown: broadcast::Receiver<()>
+) {
     info!("Starting scheduler tasks...");
 
     let mut s1 = shutdown.resubscribe();
     let mut s2 = shutdown.resubscribe();
     let mut s3 = shutdown.resubscribe();
 
-    tokio::spawn(async move { run_minute_loop(&mut s1).await });
-    tokio::spawn(async move { run_hour_loop(&mut s2).await });
-    tokio::spawn(async move { run_day_loop(&mut s3).await });
+    // Minute loop
+    tokio::spawn({
+        let state = state.clone();  // ✔ each spawn gets its own clone
+        async move {
+            run_minute_loop(state, &mut s1).await;
+        }
+    });
 
-    // Keep the function alive until shutdown signal is received
+    // Hour loop
+    tokio::spawn({
+        let state = state.clone();  // ✔ another clone
+        async move {
+            run_hour_loop(state, &mut s2).await;
+        }
+    });
+
+    // Day loop
+    tokio::spawn({
+        let state = state.clone();  // ✔ another clone
+        async move {
+            run_day_loop(state, &mut s3).await;
+        }
+    });
+
+    // Keep function alive until shutdown signal
     let _ = shutdown.recv().await;
 }
+
 /// Runs every aligned minute (e.g., 12:00:00, 12:01:00 …)
-pub async fn run_minute_loop(shutdown: &mut broadcast::Receiver<()>) {
+pub async fn run_minute_loop(
+    state: AppState,
+    shutdown: &mut broadcast::Receiver<()>
+) {
     align_to_next_minute().await;
     let mut ticker = interval(Duration::from_secs(60));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -32,7 +60,15 @@ pub async fn run_minute_loop(shutdown: &mut broadcast::Receiver<()>) {
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                if let Err(e) = retry_task("minute", minute_task).await {
+                let state_clone = state.clone();
+                let task = {
+                    let state = state.clone();
+                    move || {
+                        let state2 = state.clone();
+                        minute_task(state2)
+                    }
+                };
+                if let Err(e) = retry_task("minute", task).await {
                     error!(?e, "minute_task failed");
                 }
             }
@@ -45,7 +81,7 @@ pub async fn run_minute_loop(shutdown: &mut broadcast::Receiver<()>) {
 }
 
 /// Runs an hour loop that fires at HH:00:30 each hour (e.g., 01:00:30, 02:00:30 …)
-pub async fn run_hour_loop(shutdown: &mut broadcast::Receiver<()>) {
+pub async fn run_hour_loop(state: AppState, shutdown: &mut broadcast::Receiver<()>) {
     align_to_next_hour_plus_30s().await;
 
     let mut ticker = interval(Duration::from_secs(3600));
@@ -67,7 +103,7 @@ pub async fn run_hour_loop(shutdown: &mut broadcast::Receiver<()>) {
 }
 
 /// Runs day at 00:30:30 UTC.
-pub async fn run_day_loop(shutdown: &mut broadcast::Receiver<()>) {
+pub async fn run_day_loop(state: AppState, shutdown: &mut broadcast::Receiver<()>) {
     align_to_next_midnight_plus_30m30s().await;
 
     let mut ticker = interval(Duration::from_secs(86_400)); // 24h
