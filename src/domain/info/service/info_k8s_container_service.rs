@@ -343,12 +343,13 @@ pub async fn list_k8s_containers(filter: K8sListQuery) -> Result<Vec<InfoContain
     // -------------------------------------------------------------
     debug!("🌐 Fetching pods for container refresh");
 
+    let kube_client = build_kube_client().await?;
     let pod_list = if let Some(ns) = &filter.namespace {
         fetch_pods_by_namespace(&token, &client, ns).await?
     } else if let Some(node) = &filter.node_name {
         fetch_pods_by_node(&token, &client, node).await?
     } else {
-        fetch_pods(&token, &client).await?
+        fetch_pods(&token, &kube_client).await?
     };
 
     debug!("Fetched {} pod(s) from API", pod_list.items.len());

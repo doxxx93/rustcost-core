@@ -63,6 +63,8 @@ use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 
 use crate::api::dto::info_dto::K8sListQuery;
+use crate::api::dto::k8s_pod_query_request_dto::K8sPodQueryRequestDto;
+use crate::api::dto::paginated_response::PaginatedResponse;
 use crate::api::dto::metrics_dto::RangeQuery;
 
 // logs
@@ -204,7 +206,7 @@ impl InfoK8sService {
         fn patch_info_k8s_node(id: String, patch: InfoK8sNodePatchRequest) -> serde_json::Value => patch_info_k8s_node;
 
         fn get_info_k8s_pod(pod_uid: String) -> InfoPodEntity => get_info_k8s_pod;
-        fn list_k8s_pods(filter: K8sListQuery) -> Vec<InfoPodEntity> => list_k8s_pods;
+        fn list_k8s_pods(state: AppState, filter: K8sPodQueryRequestDto) -> PaginatedResponse<InfoPodEntity> => list_k8s_pods;
         fn patch_info_k8s_pod(id: String, payload: InfoK8sPodPatchRequest) -> serde_json::Value => patch_info_k8s_pod;
 
         fn get_info_k8s_container(id: String) -> InfoContainerEntity => get_info_k8s_container;

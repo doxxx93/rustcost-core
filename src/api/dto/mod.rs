@@ -5,6 +5,8 @@ use serde::Serialize;
 pub mod metrics_dto;
 pub mod info_dto;
 pub mod system_dto;
+pub mod k8s_pod_query_request_dto;
+pub mod paginated_response;
 
 /// Standard API response wrapper used by all endpoints
 #[derive(Serialize)]

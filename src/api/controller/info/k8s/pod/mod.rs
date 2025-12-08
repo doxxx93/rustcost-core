@@ -3,8 +3,9 @@ use axum::Json;
 use serde_json::Value;
 
 use crate::api::util::json::to_json;
-use crate::api::dto::info_dto::K8sListQuery;
 use crate::api::dto::ApiResponse;
+use crate::api::dto::k8s_pod_query_request_dto::K8sPodQueryRequestDto;
+use crate::api::dto::paginated_response::PaginatedResponse;
 use crate::app_state::AppState;
 use crate::core::persistence::info::k8s::pod::info_pod_entity::InfoPodEntity;
 use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest;
@@ -23,9 +24,11 @@ impl InfoK8sPodController {
     /// List pods – optionally filter by `namespace`, `labelSelector`, or `nodeName`
     pub async fn list_k8s_pods(
         State(state): State<AppState>,
-        Query(filter): Query<K8sListQuery>,
-    ) -> Result<Json<ApiResponse<Vec<InfoPodEntity>>>, AppError> {
-        to_json(state.info_k8s_service.list_k8s_pods(filter).await)
+        Query(filter): Query<K8sPodQueryRequestDto>,
+    ) -> Result<Json<ApiResponse<PaginatedResponse<InfoPodEntity>>>, AppError> {
+        let svc = state.info_k8s_service.clone();
+        let state_clone = state.clone();
+        to_json(svc.list_k8s_pods(state_clone, filter).await)
     }
 
     pub async fn patch_info_k8s_pod(

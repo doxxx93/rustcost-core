@@ -10,7 +10,7 @@ use crate::domain::metric::k8s::common::dto::{CommonMetricValuesDto, FilesystemM
 use crate::domain::metric::k8s::common::service_helpers::{apply_costs, build_cost_summary_dto, build_cost_trend_dto, resolve_time_window};
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_resolve::resolve_k8s_metric_repository;
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8sMetricRepositoryVariant;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 
@@ -28,14 +28,26 @@ pub async fn get_metric_k8s_cluster_raw(
 
         // Load per-node metric rows
         let rows = match &repo {
-            K8sMetricRepositoryVariant::NodeMinute(r) =>
-                r.get_row_between(node_name, window.start, window.end),
-            K8sMetricRepositoryVariant::NodeHour(r) =>
-                r.get_row_between(node_name, window.start, window.end),
-            K8sMetricRepositoryVariant::NodeDay(r) =>
-                r.get_row_between(node_name, window.start, window.end),
-            _ => Ok(vec![]),
-        }.unwrap_or_else(|err| {
+            K8sMetricRepositoryVariant::NodeMinute(r) => {
+                r.get_row_between(node_name, window.start, window.end)
+            }
+            K8sMetricRepositoryVariant::NodeHour(r) => {
+                r.get_row_between(node_name, window.start, window.end)
+            }
+            K8sMetricRepositoryVariant::NodeDay(r) => {
+                r.get_row_between(node_name, window.start, window.end)
+            }
+            K8sMetricRepositoryVariant::PodMinute(_)
+            | K8sMetricRepositoryVariant::PodHour(_)
+            | K8sMetricRepositoryVariant::PodDay(_)
+            | K8sMetricRepositoryVariant::ContainerMinute(_)
+            | K8sMetricRepositoryVariant::ContainerHour(_)
+            | K8sMetricRepositoryVariant::ContainerDay(_) => Err(anyhow!(
+                "Cluster node metrics require a node repository for granularity {:?}",
+                window.granularity
+            )),
+        }
+        .unwrap_or_else(|err| {
             tracing::warn!("Failed loading metrics for {}: {}", node_name, err);
             vec![]
         });
@@ -46,27 +58,26 @@ pub async fn get_metric_k8s_cluster_raw(
                 time: m.time,
                 cpu_memory: CommonMetricValuesDto {
                     cpu_usage_nano_cores: m.cpu_usage_nano_cores.map(|v| v as f64),
+                    cpu_usage_core_nano_seconds: m.cpu_usage_core_nano_seconds.map(|v| v as f64),
                     memory_usage_bytes: m.memory_usage_bytes.map(|v| v as f64),
                     memory_working_set_bytes: m.memory_working_set_bytes.map(|v| v as f64),
                     memory_rss_bytes: m.memory_rss_bytes.map(|v| v as f64),
                     memory_page_faults: m.memory_page_faults.map(|v| v as f64),
-                    ..Default::default()
                 },
                 filesystem: Some(FilesystemMetricDto {
                     used_bytes: m.fs_used_bytes.map(|v| v as f64),
                     capacity_bytes: m.fs_capacity_bytes.map(|v| v as f64),
                     inodes_used: m.fs_inodes_used.map(|v| v as f64),
                     inodes: m.fs_inodes.map(|v| v as f64),
-                    ..Default::default()
                 }),
                 network: Some(NetworkMetricDto {
                     rx_bytes: m.network_physical_rx_bytes.map(|v| v as f64),
                     tx_bytes: m.network_physical_tx_bytes.map(|v| v as f64),
                     rx_errors: m.network_physical_rx_errors.map(|v| v as f64),
                     tx_errors: m.network_physical_tx_errors.map(|v| v as f64),
-                    ..Default::default()
                 }),
-                ..Default::default()
+                storage: None,
+                cost: None,
             }
         }));
     }
@@ -403,6 +414,8 @@ pub async fn get_metric_k8s_cluster_raw_efficiency(
 
     Ok(serde_json::to_value(dto)?)
 }
+
+#[must_use] // Dropping aggregated data is almost certainly unintended.
 pub fn aggregate_cluster_points(
     points: Vec<UniversalMetricPointDto>,
 ) -> Vec<UniversalMetricPointDto> {
@@ -499,27 +512,26 @@ pub fn aggregate_cluster_points(
                     .then(|| mem_rss_sum / mem_rss_count),
                 memory_page_faults: (mem_pf_count > 0.0)
                     .then(|| mem_pf_sum / mem_pf_count),
-                ..Default::default()
             },
             filesystem: Some(FilesystemMetricDto {
                 used_bytes: Some(fs_used_sum),
                 capacity_bytes: Some(fs_capacity_sum),
-                ..Default::default()
+                inodes_used: None,
+                inodes: None,
             }),
             network: Some(NetworkMetricDto {
                 rx_bytes: Some(rx_sum),
                 tx_bytes: Some(tx_sum),
                 rx_errors: Some(rx_err_sum),
                 tx_errors: Some(tx_err_sum),
-                ..Default::default()
             }),
-            ..Default::default()
+            storage: None,
+            cost: None,
         });
     }
 
     result
 }
-
 
 
 

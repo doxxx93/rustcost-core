@@ -35,6 +35,8 @@ pub mod util {
 
 // Pod client compatibility
 pub mod client_k8s_pod {
+    use kube::{Api, Client};
+    use kube::api::ListParams;
     use super::*;
     use crate::core::client::kube_resources::Pod;
     use serde::{Serialize, Deserialize};
@@ -44,23 +46,24 @@ pub mod client_k8s_pod {
         pub items: Vec<Pod>,
     }
 
-    pub async fn fetch_pods(_token: &str, _client: &reqwest::Client) -> Result<PodList> {
-        // TODO: Migrate to kube-rs
-        Ok(PodList { items: Vec::new() })
+    /// Fetch ALL pods using kube-rs
+    pub async fn fetch_pods(_token: &str, client: &Client) -> Result<PodList> {
+        let api: Api<Pod> = Api::all(client.clone());
+        let list = api.list(&ListParams::default()).await?;
+        Ok(PodList { items: list.items })
     }
 
+    pub async fn fetch_pod_by_uid(_token: &str, _client: &reqwest::Client, uid: &str) -> Result<Pod> {
+        let kube = crate::core::client::kube_client::build_kube_client().await?;
+        crate::core::client::pods::fetch_pod_by_uid(&kube, uid).await
+    }
     pub async fn fetch_pod_by_name_and_namespace(
-        _token: &str,
-        _client: &reqwest::Client,
-        _namespace: &str,
-        _name: &str,
+        client: &Client,
+        namespace: &str,
+        name: &str,
     ) -> Result<Pod> {
-        // TODO: Migrate to kube-rs
-        anyhow::bail!("Not implemented - migrate to kube-rs")
-    }
-
-    pub async fn fetch_pod_by_uid(_token: &str, _client: &reqwest::Client, _uid: &str) -> Result<Pod> {
-        anyhow::bail!("Not implemented - migrate to kube-rs")
+        let api: Api<Pod> = Api::namespaced(client.clone(), namespace);
+        Ok(api.get(name).await?)
     }
 
     pub async fn fetch_pods_by_label(
@@ -94,8 +97,8 @@ pub mod client_k8s_pod_mapper {
     use crate::core::client::kube_resources::Pod;
     use crate::core::persistence::info::k8s::pod::info_pod_entity::InfoPodEntity;
 
-    pub fn map_pod_to_info_pod_entity(_pod: &Pod) -> Result<InfoPodEntity> {
-        Ok(InfoPodEntity::default())
+    pub fn map_pod_to_info_pod_entity(pod: &Pod) -> Result<InfoPodEntity> {
+        crate::core::client::mappers::map_pod_to_info_entity(pod)
     }
 }
 
