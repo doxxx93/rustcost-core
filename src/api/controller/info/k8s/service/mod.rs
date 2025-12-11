@@ -1,6 +1,6 @@
 use axum::extract::{Path, Query, State};
 use axum::Json;
-use k8s_openapi::api::core::v1::PersistentVolumeClaim;
+use k8s_openapi::api::core::v1::Service;
 
 use crate::api::dto::ApiResponse;
 use crate::api::dto::info_dto::PaginationQuery;
@@ -9,29 +9,29 @@ use crate::api::util::json::to_json;
 use crate::app_state::AppState;
 use crate::errors::AppError;
 
-pub struct InfoK8sPvcController;
+pub struct InfoK8sServiceController;
 
-impl InfoK8sPvcController {
-    pub async fn get_k8s_persistent_volume_claims(
+impl InfoK8sServiceController {
+    pub async fn get_k8s_services(
         State(state): State<AppState>,
         Query(pagination): Query<PaginationQuery>,
-    ) -> Result<Json<ApiResponse<PaginatedResponse<PersistentVolumeClaim>>>, AppError> {
+    ) -> Result<Json<ApiResponse<PaginatedResponse<Service>>>, AppError> {
         to_json(
             state
                 .info_k8s_service
-                .get_k8s_persistent_volume_claims_paginated(pagination.limit, pagination.offset)
+                .get_k8s_services_paginated(pagination.limit, pagination.offset)
                 .await,
         )
     }
 
-    pub async fn get_k8s_persistent_volume_claim(
+    pub async fn get_k8s_service(
         Path((namespace, name)): Path<(String, String)>,
         State(state): State<AppState>,
-    ) -> Result<Json<ApiResponse<PersistentVolumeClaim>>, AppError> {
+    ) -> Result<Json<ApiResponse<Service>>, AppError> {
         to_json(
             state
                 .info_k8s_service
-                .get_k8s_persistent_volume_claim(namespace, name)
+                .get_k8s_service(namespace, name)
                 .await,
         )
     }

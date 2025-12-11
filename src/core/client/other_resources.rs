@@ -18,6 +18,18 @@ pub async fn fetch_persistent_volumes(client: &Client) -> Result<Vec<PersistentV
     Ok(pv_list.items)
 }
 
+/// Fetch a single persistent volume by name
+pub async fn fetch_persistent_volume_by_name(
+    client: &Client,
+    name: &str,
+) -> Result<PersistentVolume> {
+    let pvs: Api<PersistentVolume> = Api::all(client.clone());
+    let pv = pvs.get(name).await?;
+
+    debug!("Fetched persistent volume: {}", name);
+    Ok(pv)
+}
+
 // ==================== Persistent Volume Claims ====================
 
 /// Fetch all persistent volume claims in the cluster
@@ -43,6 +55,19 @@ pub async fn fetch_persistent_volume_claims_by_namespace(
         namespace
     );
     Ok(pvc_list.items)
+}
+
+/// Fetch a single persistent volume claim by name and namespace
+pub async fn fetch_persistent_volume_claim_by_name_and_namespace(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<PersistentVolumeClaim> {
+    let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), namespace);
+    let pvc = pvcs.get(name).await?;
+
+    debug!("Fetched persistent volume claim: {}/{}", namespace, name);
+    Ok(pvc)
 }
 
 // ==================== Resource Quotas ====================
