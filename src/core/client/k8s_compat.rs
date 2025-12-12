@@ -257,6 +257,549 @@ pub mod client_k8s_deployment_mapper {
     }
 }
 
+// StatefulSet compatibility
+pub mod client_k8s_statefulset {
+    use super::*;
+    use crate::core::client::{kube_client, statefulsets};
+    use crate::core::client::kube_resources::StatefulSet;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct StatefulSetList {
+        pub items: Vec<StatefulSet>,
+    }
+
+    pub async fn fetch_statefulsets(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets(&kube).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn fetch_statefulset_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        statefulsets::fetch_statefulset_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_statefulsets_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets_by_namespace(&kube, namespace).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn fetch_statefulsets_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets_by_label(&kube, label).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn create_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        statefulset: &StatefulSet,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), statefulset).await?)
+    }
+
+    pub async fn patch_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
+// DaemonSet compatibility
+pub mod client_k8s_daemonset {
+    use super::*;
+    use crate::core::client::{daemonsets, kube_client};
+    use crate::core::client::kube_resources::DaemonSet;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct DaemonSetList {
+        pub items: Vec<DaemonSet>,
+    }
+
+    pub async fn fetch_daemonsets(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<DaemonSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = daemonsets::fetch_daemonsets(&kube).await?;
+        Ok(DaemonSetList { items })
+    }
+
+    pub async fn fetch_daemonset_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<DaemonSet> {
+        let kube = kube_client::build_kube_client().await?;
+        daemonsets::fetch_daemonset_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_daemonsets_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<DaemonSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = daemonsets::fetch_daemonsets_by_namespace(&kube, namespace).await?;
+        Ok(DaemonSetList { items })
+    }
+
+    pub async fn fetch_daemonsets_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<DaemonSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = daemonsets::fetch_daemonsets_by_label(&kube, label).await?;
+        Ok(DaemonSetList { items })
+    }
+
+    pub async fn create_daemonset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        daemonset: &DaemonSet,
+    ) -> Result<DaemonSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<DaemonSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), daemonset).await?)
+    }
+
+    pub async fn patch_daemonset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<DaemonSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<DaemonSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_daemonset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<DaemonSet> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
+// Job compatibility
+pub mod client_k8s_job {
+    use super::*;
+    use crate::core::client::{jobs, kube_client};
+    use crate::core::client::kube_resources::Job;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct JobList {
+        pub items: Vec<Job>,
+    }
+
+    pub async fn fetch_jobs(_token: &str, _client: &reqwest::Client) -> Result<JobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = jobs::fetch_jobs(&kube).await?;
+        Ok(JobList { items })
+    }
+
+    pub async fn fetch_job_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Job> {
+        let kube = kube_client::build_kube_client().await?;
+        jobs::fetch_job_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_jobs_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<JobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = jobs::fetch_jobs_by_namespace(&kube, namespace).await?;
+        Ok(JobList { items })
+    }
+
+    pub async fn fetch_jobs_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<JobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = jobs::fetch_jobs_by_label(&kube, label).await?;
+        Ok(JobList { items })
+    }
+
+    pub async fn create_job(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        job: &Job,
+    ) -> Result<Job> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Job> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), job).await?)
+    }
+
+    pub async fn patch_job(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<Job> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Job> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_job(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Job> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
+// CronJob compatibility
+pub mod client_k8s_cronjob {
+    use super::*;
+    use crate::core::client::{cronjobs, kube_client};
+    use crate::core::client::kube_resources::CronJob;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct CronJobList {
+        pub items: Vec<CronJob>,
+    }
+
+    pub async fn fetch_cronjobs(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<CronJobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = cronjobs::fetch_cronjobs(&kube).await?;
+        Ok(CronJobList { items })
+    }
+
+    pub async fn fetch_cronjob_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<CronJob> {
+        let kube = kube_client::build_kube_client().await?;
+        cronjobs::fetch_cronjob_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_cronjobs_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<CronJobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = cronjobs::fetch_cronjobs_by_namespace(&kube, namespace).await?;
+        Ok(CronJobList { items })
+    }
+
+    pub async fn fetch_cronjobs_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<CronJobList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = cronjobs::fetch_cronjobs_by_label(&kube, label).await?;
+        Ok(CronJobList { items })
+    }
+
+    pub async fn create_cronjob(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        cronjob: &CronJob,
+    ) -> Result<CronJob> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<CronJob> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), cronjob).await?)
+    }
+
+    pub async fn patch_cronjob(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<CronJob> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<CronJob> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_cronjob(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<CronJob> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
+// Service compatibility
+pub mod client_k8s_service {
+    use super::*;
+    use crate::core::client::{kube_client, services};
+    use crate::core::client::kube_resources::Service;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct ServiceList {
+        pub items: Vec<Service>,
+    }
+
+    pub async fn fetch_services(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<ServiceList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = services::fetch_services(&kube).await?;
+        Ok(ServiceList { items })
+    }
+
+    pub async fn fetch_service_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Service> {
+        let kube = kube_client::build_kube_client().await?;
+        services::fetch_service_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_services_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<ServiceList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = services::fetch_services_by_namespace(&kube, namespace).await?;
+        Ok(ServiceList { items })
+    }
+
+    pub async fn fetch_services_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<ServiceList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = services::fetch_services_by_label(&kube, label).await?;
+        Ok(ServiceList { items })
+    }
+
+    pub async fn create_service(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        service: &Service,
+    ) -> Result<Service> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Service> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), service).await?)
+    }
+
+    pub async fn patch_service(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<Service> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Service> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_service(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Service> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
+// Ingress compatibility
+pub mod client_k8s_ingress {
+    use super::*;
+    use crate::core::client::{ingresses, kube_client};
+    use crate::core::client::kube_resources::Ingress;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct IngressList {
+        pub items: Vec<Ingress>,
+    }
+
+    pub async fn fetch_ingresses(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<IngressList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = ingresses::fetch_ingresses(&kube).await?;
+        Ok(IngressList { items })
+    }
+
+    pub async fn fetch_ingress_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Ingress> {
+        let kube = kube_client::build_kube_client().await?;
+        ingresses::fetch_ingress_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_ingresses_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<IngressList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = ingresses::fetch_ingresses_by_namespace(&kube, namespace).await?;
+        Ok(IngressList { items })
+    }
+
+    pub async fn fetch_ingresses_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<IngressList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = ingresses::fetch_ingresses_by_label(&kube, label).await?;
+        Ok(IngressList { items })
+    }
+
+    pub async fn create_ingress(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        ingress: &Ingress,
+    ) -> Result<Ingress> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Ingress> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), ingress).await?)
+    }
+
+    pub async fn patch_ingress(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<Ingress> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Ingress> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_ingress(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Ingress> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
 // Namespace compatibility
 pub mod client_k8s_namespace {
     use super::*;
@@ -473,6 +1016,15 @@ pub mod client_k8s_persistent_volume {
         other_resources::fetch_persistent_volumes(&kube).await
     }
 
+    pub async fn fetch_persistent_volume_by_name(
+        _token: &str,
+        _client: &reqwest::Client,
+        name: &str,
+    ) -> Result<PersistentVolume> {
+        let kube = kube_client::build_kube_client().await?;
+        other_resources::fetch_persistent_volume_by_name(&kube, name).await
+    }
+
     pub async fn create_persistent_volume(
         _token: &str,
         _client: &reqwest::Client,
@@ -518,6 +1070,16 @@ pub mod client_k8s_persistent_volume_claim {
     pub async fn fetch_persistent_volume_claims(_token: &str, _client: &reqwest::Client) -> Result<Vec<PersistentVolumeClaim>> {
         let kube = kube_client::build_kube_client().await?;
         other_resources::fetch_persistent_volume_claims(&kube).await
+    }
+
+    pub async fn fetch_persistent_volume_claim_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<PersistentVolumeClaim> {
+        let kube = kube_client::build_kube_client().await?;
+        other_resources::fetch_persistent_volume_claim_by_name_and_namespace(&kube, namespace, name).await
     }
 
     pub async fn create_persistent_volume_claim(

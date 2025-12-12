@@ -11,6 +11,7 @@ pub use k8s_openapi::api::core::v1::{
     Namespace,
     PersistentVolume,
     PersistentVolumeClaim,
+    Service,
     ResourceQuota,
     LimitRange,
 };
@@ -20,6 +21,15 @@ pub use k8s_openapi::api::apps::v1::{
     ReplicaSet,
     StatefulSet,
     DaemonSet,
+};
+
+pub use k8s_openapi::api::batch::v1::{
+    Job,
+    CronJob,
+};
+
+pub use k8s_openapi::api::networking::v1::{
+    Ingress,
 };
 
 pub use k8s_openapi::api::autoscaling::v2::{

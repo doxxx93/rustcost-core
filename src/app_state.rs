@@ -24,8 +24,31 @@ use crate::domain::info::service::info_namespace_service::get_k8s_namespaces;
 use crate::domain::info::service::info_k8s_deployment_service::{
     get_k8s_deployment, get_k8s_deployments, get_k8s_deployments_paginated,
 };
-use crate::domain::info::service::info_k8s_persistent_volume_service::get_k8s_persistent_volumes;
-use crate::domain::info::service::info_k8s_persistent_volume_claim_service::get_k8s_persistent_volume_claims;
+use crate::domain::info::service::info_k8s_statefulset_service::{
+    get_k8s_statefulset, get_k8s_statefulsets, get_k8s_statefulsets_paginated,
+};
+use crate::domain::info::service::info_k8s_daemonset_service::{
+    get_k8s_daemonset, get_k8s_daemonsets, get_k8s_daemonsets_paginated,
+};
+use crate::domain::info::service::info_k8s_job_service::{
+    get_k8s_job, get_k8s_jobs, get_k8s_jobs_paginated,
+};
+use crate::domain::info::service::info_k8s_cronjob_service::{
+    get_k8s_cronjob, get_k8s_cronjobs, get_k8s_cronjobs_paginated,
+};
+use crate::domain::info::service::info_k8s_service_service::{
+    get_k8s_service, get_k8s_services, get_k8s_services_paginated,
+};
+use crate::domain::info::service::info_k8s_ingress_service::{
+    get_k8s_ingress, get_k8s_ingresses, get_k8s_ingresses_paginated,
+};
+use crate::domain::info::service::info_k8s_persistent_volume_service::{
+    get_k8s_persistent_volume, get_k8s_persistent_volumes, get_k8s_persistent_volumes_paginated,
+};
+use crate::domain::info::service::info_k8s_persistent_volume_claim_service::{
+    get_k8s_persistent_volume_claim, get_k8s_persistent_volume_claims,
+    get_k8s_persistent_volume_claims_paginated,
+};
 use crate::domain::info::service::info_k8s_resource_quota_service::get_k8s_resource_quotas;
 use crate::domain::info::service::info_k8s_limit_range_service::get_k8s_limit_ranges;
 use crate::domain::info::service::info_k8s_hpa_service::get_k8s_hpas;
@@ -199,8 +222,36 @@ impl InfoK8sService {
         fn get_k8s_deployments() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments;
         fn get_k8s_deployments_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments_paginated;
         fn get_k8s_deployment(namespace: String, name: String) -> k8s_openapi::api::apps::v1::Deployment => get_k8s_deployment;
-        fn get_k8s_persistent_volumes() -> serde_json::Value => get_k8s_persistent_volumes;
-        fn get_k8s_persistent_volume_claims() -> serde_json::Value => get_k8s_persistent_volume_claims;
+        fn get_k8s_statefulsets() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::StatefulSet> => get_k8s_statefulsets;
+        fn get_k8s_statefulsets_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::StatefulSet> => get_k8s_statefulsets_paginated;
+        fn get_k8s_statefulset(namespace: String, name: String) -> k8s_openapi::api::apps::v1::StatefulSet => get_k8s_statefulset;
+        fn get_k8s_daemonsets() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::DaemonSet> => get_k8s_daemonsets;
+        fn get_k8s_daemonsets_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::DaemonSet> => get_k8s_daemonsets_paginated;
+        fn get_k8s_daemonset(namespace: String, name: String) -> k8s_openapi::api::apps::v1::DaemonSet => get_k8s_daemonset;
+
+        fn get_k8s_jobs() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::batch::v1::Job> => get_k8s_jobs;
+        fn get_k8s_jobs_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::batch::v1::Job> => get_k8s_jobs_paginated;
+        fn get_k8s_job(namespace: String, name: String) -> k8s_openapi::api::batch::v1::Job => get_k8s_job;
+
+        fn get_k8s_cronjobs() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::batch::v1::CronJob> => get_k8s_cronjobs;
+        fn get_k8s_cronjobs_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::batch::v1::CronJob> => get_k8s_cronjobs_paginated;
+        fn get_k8s_cronjob(namespace: String, name: String) -> k8s_openapi::api::batch::v1::CronJob => get_k8s_cronjob;
+
+        fn get_k8s_services() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::core::v1::Service> => get_k8s_services;
+        fn get_k8s_services_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::core::v1::Service> => get_k8s_services_paginated;
+        fn get_k8s_service(namespace: String, name: String) -> k8s_openapi::api::core::v1::Service => get_k8s_service;
+
+        fn get_k8s_ingresses() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::networking::v1::Ingress> => get_k8s_ingresses;
+        fn get_k8s_ingresses_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::networking::v1::Ingress> => get_k8s_ingresses_paginated;
+        fn get_k8s_ingress(namespace: String, name: String) -> k8s_openapi::api::networking::v1::Ingress => get_k8s_ingress;
+
+        fn get_k8s_persistent_volumes() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::core::v1::PersistentVolume> => get_k8s_persistent_volumes;
+        fn get_k8s_persistent_volumes_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::core::v1::PersistentVolume> => get_k8s_persistent_volumes_paginated;
+        fn get_k8s_persistent_volume(name: String) -> k8s_openapi::api::core::v1::PersistentVolume => get_k8s_persistent_volume;
+
+        fn get_k8s_persistent_volume_claims() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::core::v1::PersistentVolumeClaim> => get_k8s_persistent_volume_claims;
+        fn get_k8s_persistent_volume_claims_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::core::v1::PersistentVolumeClaim> => get_k8s_persistent_volume_claims_paginated;
+        fn get_k8s_persistent_volume_claim(namespace: String, name: String) -> k8s_openapi::api::core::v1::PersistentVolumeClaim => get_k8s_persistent_volume_claim;
         fn get_k8s_resource_quotas() -> serde_json::Value => get_k8s_resource_quotas;
         fn get_k8s_limit_ranges() -> serde_json::Value => get_k8s_limit_ranges;
         fn get_k8s_hpas() -> serde_json::Value => get_k8s_hpas;
