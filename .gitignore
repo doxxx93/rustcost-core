@@ -27,7 +27,6 @@ config/*.test.*
 # --- Temporary / Runtime Data ---
 data/
 tmp/
-logs/
 cache/
 
 # --- OS files ---
