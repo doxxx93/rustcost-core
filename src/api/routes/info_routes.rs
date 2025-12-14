@@ -4,6 +4,7 @@ use axum::{routing::get, Router};
 use axum::routing::patch;
 use crate::api::controller::info::info_controller::InfoController;
 use crate::api::controller::info::setting::InfoSettingController;
+use crate::api::controller::info::alerts::InfoAlertController;
 use crate::api::controller::info::k8s::namespace::InfoK8sNamespaceController;
 use crate::api::controller::info::k8s::deployment::InfoK8sDeploymentController;
 use crate::api::controller::info::k8s::statefulset::InfoK8sStatefulSetController;
@@ -23,6 +24,7 @@ use crate::app_state::AppState;
 pub fn info_routes() -> Router<AppState> {
     Router::new()
         .route("/settings", get(InfoSettingController::get_info_settings).put(InfoSettingController::upsert_info_settings))
+        .route("/alerts", get(InfoAlertController::get_info_alerts).put(InfoAlertController::upsert_info_alerts))
         .route("/unit-prices", get(InfoController::get_info_unit_prices).put(InfoController::upsert_info_unit_prices))
         .route("/versions", get(InfoController::get_info_versions))
 

@@ -19,6 +19,10 @@ pub fn info_unit_price_path() -> PathBuf {
     info_path("unit_price.rci")
 }
 
+pub fn info_alert_path() -> PathBuf {
+    info_path("alerts.rci")
+}
+
 pub fn info_setting_path() -> PathBuf {
     info_path("settings.rci")
 }
@@ -59,4 +63,3 @@ pub fn info_k8s_node_key_dir_path(node_key: &str) -> PathBuf {
 pub fn info_k8s_node_file_path(node_key: &str) -> PathBuf {
     info_k8s_path(format!("node/{}/info.rci", node_key))
 }
-

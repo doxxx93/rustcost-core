@@ -12,6 +12,7 @@ pub fn get_rustcost_base_path() -> PathBuf {
 
 // Re-export info path builders from the new module
 pub use crate::core::persistence::info::path::{
+    info_alert_path,
     info_setting_path,
     info_unit_price_path,
     info_version_path,

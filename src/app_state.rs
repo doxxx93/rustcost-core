@@ -18,6 +18,9 @@ use crate::domain::info::service::info_version_service::get_info_versions;
 use crate::domain::info::service::info_settings_service::{
     get_info_settings, upsert_info_settings,
 };
+use crate::domain::info::service::info_alerts_service::{
+    get_info_alerts, upsert_info_alerts,
+};
 
 // info k8s
 use crate::domain::info::service::info_namespace_service::get_k8s_namespaces;
@@ -75,6 +78,7 @@ use crate::domain::metric::k8s::cluster::service::*;
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::InfoUnitPriceEntity;
 use crate::core::persistence::info::fixed::version::info_version_entity::InfoVersionEntity;
 use crate::core::persistence::info::fixed::setting::info_setting_entity::InfoSettingEntity;
+use crate::core::persistence::info::fixed::alerts::info_alert_entity::InfoAlertEntity;
 
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::info::k8s::pod::info_pod_entity::InfoPodEntity;
@@ -83,6 +87,7 @@ use crate::core::persistence::info::k8s::container::info_container_entity::InfoC
 // dtos
 use crate::domain::info::dto::info_unit_price_upsert_request::InfoUnitPriceUpsertRequest;
 use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
+use crate::domain::info::dto::info_alert_upsert_request::InfoAlertUpsertRequest;
 use crate::domain::info::dto::info_k8s_node_patch_request::InfoK8sNodePatchRequest;
 use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
@@ -202,6 +207,9 @@ impl InfoService {
         fn upsert_info_unit_prices(req: InfoUnitPriceUpsertRequest) -> serde_json::Value => upsert_info_unit_prices;
 
         fn get_info_versions() -> InfoVersionEntity => get_info_versions;
+
+        fn get_info_alerts() -> InfoAlertEntity => get_info_alerts;
+        fn upsert_info_alerts(req: InfoAlertUpsertRequest) -> serde_json::Value => upsert_info_alerts;
 
         fn get_info_settings() -> InfoSettingEntity => get_info_settings;
         fn upsert_info_settings(req: InfoSettingUpsertRequest) -> serde_json::Value => upsert_info_settings;

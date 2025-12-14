@@ -46,32 +46,6 @@ pub struct InfoSettingUpsertRequest {
     /// Number of metrics batched together when written to disk.
     pub metrics_batch_size: Option<u32>,
 
-    // ===== Alerts & Notifications =====
-    /// Enable cluster-level health monitoring alerts.
-    pub enable_cluster_health_alert: Option<bool>,
-
-    /// Enable internal RustCost health alerts.
-    pub enable_rustcost_health_alert: Option<bool>,
-
-    /// Default subject line for alert notifications.
-    #[validate(length(min = 1, max = 100))]
-    pub global_alert_subject: Option<String>,
-
-    /// Optional URL to include in alert messages for reference.
-    #[validate(url)]
-    pub linkback_url: Option<String>,
-
-    /// Global list of alert email recipients.
-    pub email_recipients: Option<Vec<String>>,
-
-    /// Optional Slack webhook for alert delivery.
-    #[validate(url)]
-    pub slack_webhook_url: Option<String>,
-
-    /// Optional Microsoft Teams webhook for alert delivery.
-    #[validate(url)]
-    pub teams_webhook_url: Option<String>,
-
     // ===== LLM Integration =====
     /// Endpoint for an external LLM API (e.g., OpenAI, Anthropic).
     #[validate(url)]

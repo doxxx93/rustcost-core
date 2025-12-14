@@ -62,21 +62,6 @@ impl InfoFixedFsAdapterTrait<InfoSettingEntity> for InfoSettingFsAdapter {
                     "SCRAPE_INTERVAL_SEC" => s.scrape_interval_sec = val.parse().unwrap_or(s.scrape_interval_sec),
                     "METRICS_BATCH_SIZE" => s.metrics_batch_size = val.parse().unwrap_or(s.metrics_batch_size),
 
-                    // === Alerts ===
-                    "ENABLE_CLUSTER_HEALTH_ALERT" => s.enable_cluster_health_alert = val.eq_ignore_ascii_case("true"),
-                    "ENABLE_RUSTCOST_HEALTH_ALERT" => s.enable_rustcost_health_alert = val.eq_ignore_ascii_case("true"),
-                    "GLOBAL_ALERT_SUBJECT" => s.global_alert_subject = val.to_string(),
-                    "LINKBACK_URL" => s.linkback_url = if val.is_empty() { None } else { Some(val.to_string()) },
-                    "EMAIL_RECIPIENTS" => {
-                        s.email_recipients = val
-                            .split(',')
-                            .map(|v| v.trim().to_string())
-                            .filter(|v| !v.is_empty())
-                            .collect();
-                    }
-                    "SLACK_WEBHOOK_URL" => s.slack_webhook_url = if val.is_empty() { None } else { Some(val.to_string()) },
-                    "TEAMS_WEBHOOK_URL" => s.teams_webhook_url = if val.is_empty() { None } else { Some(val.to_string()) },
-
                     // === LLM ===
                     "LLM_URL" => s.llm_url = if val.is_empty() { None } else { Some(val.to_string()) },
                     "LLM_TOKEN" => s.llm_token = if val.is_empty() { None } else { Some(val.to_string()) },
@@ -183,13 +168,6 @@ impl InfoSettingFsAdapter {
         writeln!(f, "COMPRESSION_ENABLED:{}", data.compression_enabled)?;
         writeln!(f, "SCRAPE_INTERVAL_SEC:{}", data.scrape_interval_sec)?;
         writeln!(f, "METRICS_BATCH_SIZE:{}", data.metrics_batch_size)?;
-        writeln!(f, "ENABLE_CLUSTER_HEALTH_ALERT:{}", data.enable_cluster_health_alert)?;
-        writeln!(f, "ENABLE_RUSTCOST_HEALTH_ALERT:{}", data.enable_rustcost_health_alert)?;
-        writeln!(f, "GLOBAL_ALERT_SUBJECT:{}", data.global_alert_subject)?;
-        writeln!(f, "LINKBACK_URL:{}", data.linkback_url.clone().unwrap_or_default())?;
-        writeln!(f, "EMAIL_RECIPIENTS:{}", data.email_recipients.join(","))?;
-        writeln!(f, "SLACK_WEBHOOK_URL:{}", data.slack_webhook_url.clone().unwrap_or_default())?;
-        writeln!(f, "TEAMS_WEBHOOK_URL:{}", data.teams_webhook_url.clone().unwrap_or_default())?;
         writeln!(f, "LLM_URL:{}", data.llm_url.clone().unwrap_or_default())?;
         writeln!(f, "LLM_TOKEN:{}", data.llm_token.clone().unwrap_or_default())?;
         writeln!(f, "LLM_MODEL:{}", data.llm_model.clone().unwrap_or_default())?;

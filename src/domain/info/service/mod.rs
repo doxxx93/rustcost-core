@@ -1,6 +1,7 @@
 //! Info CRUD and validation logic
 
 pub mod info_settings_service;
+pub mod info_alerts_service;
 pub mod info_unit_price_service;
 pub mod info_version_service;
 pub mod info_k8s_node_service;

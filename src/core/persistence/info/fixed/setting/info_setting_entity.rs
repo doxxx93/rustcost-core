@@ -7,7 +7,7 @@ use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequ
 ///
 /// This structure defines all configurable aspects of the system,
 /// including UI preferences, TSDB settings, metric collection intervals,
-/// alert integrations, and optional LLM connectivity.
+/// runtime toggles, and optional LLM connectivity.
 ///
 /// The configuration is persisted as a simple key–value file (`settings.rci`)
 /// and can be serialized/deserialized as YAML or JSON as needed.
@@ -52,28 +52,6 @@ pub struct InfoSettingEntity {
 
     /// Number of metrics batched together when written to disk.
     pub metrics_batch_size: u32,
-
-    // ===== Alerts & Notifications =====
-    /// Enable cluster-level health monitoring alerts.
-    pub enable_cluster_health_alert: bool,
-
-    /// Enable internal RustCost health alerts.
-    pub enable_rustcost_health_alert: bool,
-
-    /// Default subject line for alert notifications.
-    pub global_alert_subject: String,
-
-    /// Optional URL to include in alert messages for reference.
-    pub linkback_url: Option<String>,
-
-    /// Global list of alert email recipients.
-    pub email_recipients: Vec<String>,
-
-    /// Optional Slack webhook for alert delivery.
-    pub slack_webhook_url: Option<String>,
-
-    /// Optional Microsoft Teams webhook for alert delivery.
-    pub teams_webhook_url: Option<String>,
 
     // ===== LLM Integration =====
     /// Endpoint for an external LLM API (e.g., OpenAI, Anthropic).
@@ -130,15 +108,6 @@ impl Default for InfoSettingEntity {
             // --- Metrics ---
             scrape_interval_sec: 60,
             metrics_batch_size: 500,
-
-            // --- Alerts ---
-            enable_cluster_health_alert: false,
-            enable_rustcost_health_alert: false,
-            global_alert_subject: "RustCost Alert".into(),
-            linkback_url: None,
-            email_recipients: vec![],
-            slack_webhook_url: None,
-            teams_webhook_url: None,
 
             // --- LLM ---
             llm_url: None,
@@ -225,30 +194,8 @@ impl InfoSettingEntity {
             self.metrics_batch_size = v;
         }
 
-        // === Alerts & Notifications ===
-        if let Some(v) = req.enable_cluster_health_alert {
-            self.enable_cluster_health_alert = v;
-        }
-        if let Some(v) = req.enable_rustcost_health_alert {
-            self.enable_rustcost_health_alert = v;
-        }
-        if let Some(v) = req.global_alert_subject {
-            self.global_alert_subject = v;
-        }
-        if let Some(v) = req.email_recipients {
-            self.email_recipients = v;
-        }
 
         // Optional URLs and tokens (normalize empty strings → None)
-        if let Some(v) = normalize_string_opt(req.linkback_url) {
-            self.linkback_url = v;
-        }
-        if let Some(v) = normalize_string_opt(req.slack_webhook_url) {
-            self.slack_webhook_url = v;
-        }
-        if let Some(v) = normalize_string_opt(req.teams_webhook_url) {
-            self.teams_webhook_url = v;
-        }
         if let Some(v) = normalize_string_opt(req.llm_url) {
             self.llm_url = v;
         }
