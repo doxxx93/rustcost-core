@@ -156,6 +156,50 @@ pub mod client_k8s_pod_mapper {
     }
 }
 
+// Node client compatibility
+pub mod client_k8s_node {
+    use super::*;
+    use crate::core::client::{kube_client, nodes};
+    use crate::core::client::kube_resources::Node;
+    use kube::api::ListParams;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct NodeList {
+        pub items: Vec<Node>,
+    }
+
+    /// Fetch all nodes
+    pub async fn fetch_nodes(_token: &str, _client: &reqwest::Client) -> Result<NodeList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = nodes::fetch_nodes(&kube).await?;
+        Ok(NodeList { items })
+    }
+
+    /// Fetch a node by name
+    pub async fn fetch_node_by_name(
+        _token: &str,
+        _client: &reqwest::Client,
+        name: &str,
+    ) -> Result<Node> {
+        let kube = kube_client::build_kube_client().await?;
+        nodes::fetch_node_by_name(&kube, name).await
+    }
+
+    /// Fetch nodes by label selector (e.g., "node-role.kubernetes.io/worker=")
+    pub async fn fetch_nodes_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label_selector: &str,
+    ) -> Result<NodeList> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<Node> = kube::Api::all(kube.clone());
+        let lp = ListParams::default().labels(label_selector);
+        let list = api.list(&lp).await?;
+        Ok(NodeList { items: list.items })
+    }
+}
+
 // Deployment compatibility
 pub mod client_k8s_deployment {
     use super::*;

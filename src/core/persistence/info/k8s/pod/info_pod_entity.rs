@@ -112,8 +112,7 @@ impl InfoPodEntity {
         self.termination_grace_period_seconds =
             newer.termination_grace_period_seconds.or(self.termination_grace_period_seconds.take());
         self.tolerations = newer.tolerations.or(self.tolerations.take());
-
-        // DO NOT overwrite team/service/env — these are local annotations
+        // DO NOT overwrite team/service/env – these are local annotations
         if newer.team.is_some() { self.team = newer.team; }
         if newer.service.is_some() { self.service = newer.service; }
         if newer.env.is_some() { self.env = newer.env; }

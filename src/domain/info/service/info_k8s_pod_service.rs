@@ -129,6 +129,18 @@ pub fn apply_additional_filters(
 ) -> Vec<InfoPodEntity> {
     pods.into_iter()
         .filter(|p| {
+            if let Some(label_selector) = &filter.label_selector {
+                let sel = label_selector.to_lowercase();
+                let labels = p
+                    .label
+                    .as_ref()
+                    .map(|l| l.to_lowercase())
+                    .unwrap_or_default();
+                if !labels.contains(&sel) {
+                    return false;
+                }
+            }
+
             if let Some(team) = &filter.team {
                 if p.team.as_deref() != Some(team.as_str()) {
                     return false;

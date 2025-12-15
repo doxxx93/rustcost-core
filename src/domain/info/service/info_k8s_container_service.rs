@@ -3,7 +3,7 @@ use chrono::{DateTime, Duration, Utc};
 use tracing::{debug, error, warn};
 
 use crate::api::dto::info_dto::K8sListQuery;
-use crate::core::client::k8s::client_k8s_pod::{fetch_pods, fetch_pods_by_namespace, fetch_pods_by_node};
+use crate::core::client::k8s::client_k8s_pod::{fetch_pods, fetch_pods_by_namespace, fetch_pods_by_node, fetch_pods_by_label};
 use crate::core::client::k8s::util::{build_client, read_token};
 use crate::core::persistence::info::k8s::container::info_container_api_repository_trait::InfoContainerApiRepository;
 use crate::core::persistence::info::k8s::container::info_container_entity::InfoContainerEntity;
@@ -343,7 +343,9 @@ pub async fn list_k8s_containers(filter: K8sListQuery) -> Result<Vec<InfoContain
     // -------------------------------------------------------------
     debug!("🌐 Fetching pods for container refresh");
 
-    let pod_list = if let Some(ns) = &filter.namespace {
+    let pod_list = if let Some(label_selector) = &filter.label_selector {
+        fetch_pods_by_label(&token, &client, label_selector).await?
+    } else if let Some(ns) = &filter.namespace {
         fetch_pods_by_namespace(&token, &client, ns).await?
     } else if let Some(node) = &filter.node_name {
         fetch_pods_by_node(&token, &client, node).await?
@@ -401,7 +403,27 @@ pub async fn list_k8s_containers(filter: K8sListQuery) -> Result<Vec<InfoContain
         }
     }
 
-    Ok(results)
+    Ok(apply_container_label_filter(results, filter.label_selector))
+}
+
+fn apply_container_label_filter(
+    containers: Vec<InfoContainerEntity>,
+    label_selector: Option<String>,
+) -> Vec<InfoContainerEntity> {
+    if let Some(selector) = label_selector {
+        let selector_lc = selector.to_lowercase();
+        containers
+            .into_iter()
+            .filter(|c| {
+                c.labels
+                    .as_ref()
+                    .map(|lbl| lbl.to_lowercase().contains(&selector_lc))
+                    .unwrap_or(false)
+            })
+            .collect()
+    } else {
+        containers
+    }
 }
 
 pub async fn patch_info_k8s_container(

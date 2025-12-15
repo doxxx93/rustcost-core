@@ -14,6 +14,8 @@ pub struct K8sPodQueryRequestDto {
     pub node: Option<String>,
     pub deployment: Option<String>,
     pub name: Option<String>,
+    /// Label selector (e.g., "app=myservice,team=infra")
+    pub label_selector: Option<String>,
 
     /// Filter metrics by the owning team.
     pub team: Option<String>,

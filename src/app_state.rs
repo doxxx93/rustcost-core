@@ -271,7 +271,7 @@ impl InfoK8sService {
         fn get_k8s_hpas() -> serde_json::Value => get_k8s_hpas;
 
         fn get_info_k8s_node(node_name: String) -> InfoNodeEntity => get_info_k8s_node;
-        fn list_k8s_nodes() -> Vec<InfoNodeEntity> => list_k8s_nodes;
+        fn list_k8s_nodes(label_selector: Option<String>) -> Vec<InfoNodeEntity> => list_k8s_nodes;
         fn patch_info_k8s_node_filter(id: String, patch: InfoK8sNodePatchRequest) -> serde_json::Value => patch_info_k8s_node_filter;
         fn patch_info_k8s_node_price(id: String, patch: InfoK8sNodePricePatchRequest) -> serde_json::Value => patch_info_k8s_node_price;
 
@@ -404,7 +404,7 @@ impl MetricService {
         q: RangeQuery,
         node_names: Vec<String>
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes().await?;
+        let nodes = list_k8s_nodes(None).await?;
         get_metric_k8s_cluster_raw_efficiency(nodes, node_names, q).await
     }
 

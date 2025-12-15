@@ -1,8 +1,9 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde_json::Value;
 
 use crate::api::util::json::to_json;
+use crate::api::dto::info_dto::K8sListQuery;
 use crate::api::dto::ApiResponse;
 use crate::app_state::AppState;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
@@ -24,8 +25,9 @@ impl InfoK8sNodeController {
 
     pub async fn list_k8s_nodes(
         State(state): State<AppState>,
+        Query(filter): Query<K8sListQuery>,
     ) -> Result<Json<ApiResponse<Vec<InfoNodeEntity>>>, AppError> {
-        to_json(state.info_k8s_service.list_k8s_nodes().await)
+        to_json(state.info_k8s_service.list_k8s_nodes(filter.label_selector).await)
     }
 
     pub async fn patch_info_k8s_node_filter(

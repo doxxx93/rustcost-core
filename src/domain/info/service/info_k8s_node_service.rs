@@ -11,6 +11,7 @@ use crate::domain::info::dto::info_k8s_node_patch_request::{
 };
 use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
+use serde_json::Map;
 use std::fs;
 use tracing::debug;
 use validator::Validate;
@@ -60,7 +61,7 @@ pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
 
 /// List all Kubernetes nodes, using local cache when fresh.
 /// Refresh occurs if cache is missing or older than 1 hour.
-pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
+pub async fn list_k8s_nodes(label_selector: Option<String>) -> Result<Vec<InfoNodeEntity>> {
     let now = Utc::now();
     debug!("Listing all Kubernetes nodes");
 
@@ -96,7 +97,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
     // 2) If cache is valid for all records → return only cached
     if !expired_or_missing && !cached_entities.is_empty() {
         debug!("All cached node info is fresh, skipping API call.");
-        return Ok(cached_entities);
+        return Ok(apply_node_label_filter(cached_entities, label_selector));
     }
 
     // 3) Fetch from Kubernetes API
@@ -129,7 +130,47 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
         result_entities.push(merged);
     }
 
-    Ok(result_entities)
+    Ok(apply_node_label_filter(result_entities, label_selector))
+}
+
+fn apply_node_label_filter(
+    nodes: Vec<InfoNodeEntity>,
+    label_selector: Option<String>,
+) -> Vec<InfoNodeEntity> {
+    if let Some(selector) = label_selector {
+        nodes.into_iter().filter(|n| matches_node_label(n, &selector)).collect()
+    } else {
+        nodes
+    }
+}
+
+fn matches_node_label(node: &InfoNodeEntity, selector: &str) -> bool {
+    let label_json = match &node.label {
+        Some(l) => l,
+        None => return false,
+    };
+
+    // Try to parse stored JSON map {"k":"v",...}
+    if let Ok(map) = serde_json::from_str::<Map<String, serde_json::Value>>(label_json) {
+        for part in selector.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            if let Some((k, v)) = part.split_once('=') {
+                let matches = map
+                    .get(k)
+                    .and_then(|v0| v0.as_str())
+                    .map(|s| s == v)
+                    .unwrap_or(false);
+                if !matches {
+                    return false;
+                }
+            } else if !map.contains_key(part) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Fallback to substring match when JSON parse fails
+    label_json.to_lowercase().contains(&selector.to_lowercase())
 }
 
 pub async fn patch_info_k8s_node_filter(

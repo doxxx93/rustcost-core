@@ -269,8 +269,8 @@ impl InfoPodFsAdapter {
         write_vec!("TOLERATIONS", data.tolerations);
 
         // --- Metadata ---
-        write_field!("LABEL", data.label);
-        write_field!("ANNOTATION", data.annotation);
+        write_field!("LABEL", data.label.clone());
+        write_field!("ANNOTATION", data.annotation.clone());
 
         write_field!("TEAM", data.team);
         write_field!("SERVICE", data.service);
@@ -295,4 +295,3 @@ impl InfoPodFsAdapter {
 
 
 }
-
