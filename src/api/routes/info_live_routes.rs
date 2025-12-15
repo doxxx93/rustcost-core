@@ -1,6 +1,7 @@
 //! Live info routes (proxied directly to Kubernetes)
 
 use axum::{routing::get, Router};
+use crate::api::controller::info::k8s::container::InfoK8sLiveContainerController;
 use crate::api::controller::info::k8s::cronjob::InfoK8sCronJobController;
 use crate::api::controller::info::k8s::daemonset::InfoK8sDaemonSetController;
 use crate::api::controller::info::k8s::deployment::InfoK8sDeploymentController;
@@ -9,6 +10,8 @@ use crate::api::controller::info::k8s::ingress::InfoK8sIngressController;
 use crate::api::controller::info::k8s::job::InfoK8sJobController;
 use crate::api::controller::info::k8s::limit_range::InfoK8sLimitRangeController;
 use crate::api::controller::info::k8s::namespace::InfoK8sNamespaceController;
+use crate::api::controller::info::k8s::node::InfoK8sLiveNodeController;
+use crate::api::controller::info::k8s::pod::InfoK8sLivePodController;
 use crate::api::controller::info::k8s::persistent_volume::InfoK8sPersistentVolumeController;
 use crate::api::controller::info::k8s::pvc::InfoK8sPvcController;
 use crate::api::controller::info::k8s::resource_quota::InfoK8sResourceQuotaController;
@@ -103,5 +106,25 @@ pub fn info_live_routes() -> Router<AppState> {
             "/k8s/live/horizontalpodautoscalers",
             get(InfoK8sHpaController::get_k8s_hpas),
         )
+        .route(
+            "/k8s/live/nodes",
+            get(InfoK8sLiveNodeController::list_k8s_nodes),
+        )
+        .route(
+            "/k8s/live/nodes/{node_name}",
+            get(InfoK8sLiveNodeController::get_k8s_node),
+        )
+        .route("/k8s/live/pods", get(InfoK8sLivePodController::list_k8s_pods))
+        .route(
+            "/k8s/live/pods/{pod_uid}",
+            get(InfoK8sLivePodController::get_k8s_pod),
+        )
+        .route(
+            "/k8s/live/containers",
+            get(InfoK8sLiveContainerController::list_k8s_containers),
+        )
+        .route(
+            "/k8s/live/containers/{id}",
+            get(InfoK8sLiveContainerController::get_k8s_container),
+        )
 }
-

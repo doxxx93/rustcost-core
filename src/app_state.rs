@@ -68,6 +68,18 @@ use crate::domain::info::service::info_k8s_pod_service::{
 use crate::domain::info::service::info_k8s_container_service::{
     get_info_k8s_container, list_k8s_containers, patch_info_k8s_container,
 };
+use crate::domain::info::service::info_k8s_live_node_service::{
+    get_k8s_live_node,
+    get_k8s_live_nodes_paginated,
+};
+use crate::domain::info::service::info_k8s_live_pod_service::{
+    get_k8s_live_pod,
+    get_k8s_live_pods_paginated,
+};
+use crate::domain::info::service::info_k8s_live_container_service::{
+    get_k8s_live_container,
+    get_k8s_live_containers_paginated,
+};
 
 // metrics
 use crate::domain::metric::k8s::pod::service::*;
@@ -269,6 +281,15 @@ impl InfoK8sService {
         fn get_k8s_resource_quotas() -> serde_json::Value => get_k8s_resource_quotas;
         fn get_k8s_limit_ranges() -> serde_json::Value => get_k8s_limit_ranges;
         fn get_k8s_hpas() -> serde_json::Value => get_k8s_hpas;
+
+        fn get_k8s_live_nodes_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::core::v1::Node> => get_k8s_live_nodes_paginated;
+        fn get_k8s_live_node(node_name: String) -> k8s_openapi::api::core::v1::Node => get_k8s_live_node;
+
+        fn get_k8s_live_pods_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::core::v1::Pod> => get_k8s_live_pods_paginated;
+        fn get_k8s_live_pod(pod_uid: String) -> k8s_openapi::api::core::v1::Pod => get_k8s_live_pod;
+
+        fn get_k8s_live_containers_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<InfoContainerEntity> => get_k8s_live_containers_paginated;
+        fn get_k8s_live_container(id: String) -> InfoContainerEntity => get_k8s_live_container;
 
         fn get_info_k8s_node(node_name: String) -> InfoNodeEntity => get_info_k8s_node;
         fn list_k8s_nodes(label_selector: Option<String>) -> Vec<InfoNodeEntity> => list_k8s_nodes;

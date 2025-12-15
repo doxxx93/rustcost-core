@@ -20,3 +20,6 @@ pub mod info_k8s_persistent_volume_claim_service;
 pub mod info_k8s_resource_quota_service;
 pub mod info_k8s_limit_range_service;
 pub mod info_k8s_hpa_service;
+pub mod info_k8s_live_node_service;
+pub mod info_k8s_live_pod_service;
+pub mod info_k8s_live_container_service;
