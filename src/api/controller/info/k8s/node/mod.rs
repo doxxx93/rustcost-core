@@ -6,7 +6,10 @@ use crate::api::util::json::to_json;
 use crate::api::dto::ApiResponse;
 use crate::app_state::AppState;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
-use crate::domain::info::dto::info_k8s_node_patch_request::InfoK8sNodePatchRequest;
+use crate::domain::info::dto::info_k8s_node_patch_request::{
+    InfoK8sNodePatchRequest,
+    InfoK8sNodePricePatchRequest,
+};
 use crate::errors::AppError;
 
 pub struct InfoK8sNodeController;
@@ -25,7 +28,7 @@ impl InfoK8sNodeController {
         to_json(state.info_k8s_service.list_k8s_nodes().await)
     }
 
-    pub async fn patch_info_k8s_node(
+    pub async fn patch_info_k8s_node_filter(
         State(state): State<AppState>,
         Path(id): Path<String>,
         Json(payload): Json<InfoK8sNodePatchRequest>,
@@ -33,7 +36,20 @@ impl InfoK8sNodeController {
         to_json(
             state
                 .info_k8s_service
-                .patch_info_k8s_node(id, payload)
+                .patch_info_k8s_node_filter(id, payload)
+                .await,
+        )
+    }
+
+    pub async fn patch_info_k8s_node_price(
+        State(state): State<AppState>,
+        Path(id): Path<String>,
+        Json(payload): Json<InfoK8sNodePricePatchRequest>,
+    ) -> Result<Json<ApiResponse<Value>>, AppError> {
+        to_json(
+            state
+                .info_k8s_service
+                .patch_info_k8s_node_price(id, payload)
                 .await,
         )
     }

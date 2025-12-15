@@ -80,7 +80,8 @@ pub fn info_routes() -> Router<AppState> {
         .route("/k8s/nodes/{node_name}", get(node::InfoK8sNodeController::get_info_k8s_node))
         .route("/k8s/pods/{pod_uid}", get(pod::InfoK8sPodController::get_info_k8s_pod))
         .route("/k8s/containers/{id}", get(container::InfoK8sContainerController::get_info_k8s_container))
-        .route("/k8s/nodes/{node_name}", patch(node::InfoK8sNodeController::patch_info_k8s_node))
+        .route("/k8s/nodes/{node_name}/filter", patch(node::InfoK8sNodeController::patch_info_k8s_node_filter))
+        .route("/k8s/nodes/{node_name}/price", patch(node::InfoK8sNodeController::patch_info_k8s_node_price))
         .route("/k8s/pods/{pod_uid}", patch(pod::InfoK8sPodController::patch_info_k8s_pod))
         .route("/k8s/containers/{id}", patch(container::InfoK8sContainerController::patch_info_k8s_container))
 

@@ -51,10 +51,32 @@ pub struct InfoNodeEntity {
     pub image_names: Option<Vec<String>>,
     pub image_total_size_bytes: Option<u64>,
 
+    // --- Cost (node-specific) ---
+    /// Fixed price for this node in USD (instance / VM / bare metal)
+    pub fixed_instance_usd: Option<f64>,
+
+    /// Billing period for `fixed_instance`
+    pub price_period: Option<NodePricePeriod>,
+
     pub team: Option<String>,
     pub service: Option<String>,
     pub env: Option<String>, // "dev", "stage", "prod"
 
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum NodePricePeriod {
+    /// Unit-based pricing (CPU-hour, GB-hour, etc.)
+    Unit,
+
+    /// Fixed price per hour
+    Hour,
+
+    /// Fixed price per day
+    Day,
+
+    /// Fixed price per month
+    Month,
 }
 
 impl InfoNodeEntity {
@@ -111,5 +133,13 @@ impl InfoNodeEntity {
         if newer.team.is_some() { self.team = newer.team; }
         if newer.service.is_some() { self.service = newer.service; }
         if newer.env.is_some() { self.env = newer.env; }
+
+        // Preserve user-managed node pricing
+        if newer.fixed_instance_usd.is_some() {
+            self.fixed_instance_usd = newer.fixed_instance_usd;
+        }
+        if newer.price_period.is_some() {
+            self.price_period = newer.price_period;
+        }
     }
 }

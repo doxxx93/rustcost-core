@@ -1,16 +1,19 @@
-use crate::core::client::nodes::{fetch_node_by_name, fetch_nodes};
+use crate::core::client::kube_client::build_kube_client;
 use crate::core::client::mappers::map_node_to_info_entity;
+use crate::core::client::nodes::{fetch_node_by_name, fetch_nodes};
 use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository;
 use crate::core::persistence::info::path::info_k8s_node_dir_path;
-use crate::domain::info::dto::info_k8s_node_patch_request::InfoK8sNodePatchRequest;
+use crate::domain::info::dto::info_k8s_node_patch_request::{
+    InfoK8sNodePatchRequest,
+    InfoK8sNodePricePatchRequest,
+};
 use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
 use validator::Validate;
-use crate::core::client::kube_client::build_kube_client;
 
 pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
     let now = Utc::now();
@@ -25,7 +28,10 @@ pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
     };
 
     if needs_refresh {
-        debug!("Node '{}' info is missing or stale — refreshing from K8s API", node_name);
+        debug!(
+            "Node '{}' info is missing or stale – refreshing from K8s API",
+            node_name
+        );
 
         // Build K8s client
         let client = build_kube_client().await?;
@@ -52,11 +58,9 @@ pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
     }
 }
 
-
 /// List all Kubernetes nodes, using local cache when fresh.
 /// Refresh occurs if cache is missing or older than 1 hour.
 pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
-
     let now = Utc::now();
     debug!("Listing all Kubernetes nodes");
 
@@ -66,7 +70,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
     let mut cached_entities = Vec::new();
     let mut expired_or_missing = false;
 
-    // 1️⃣ Load local cache
+    // 1) Load local cache
     let node_dir = info_k8s_node_dir_path();
     if node_dir.exists() {
         if let Ok(entries) = fs::read_dir(&node_dir) {
@@ -76,33 +80,33 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
                 if let Ok(existing) = repo.read(&node_name) {
                     if let Some(ts) = existing.last_updated_info_at {
                         if now.signed_duration_since(ts) <= Duration::hours(1) {
-                            debug!("✅ Using cached node info for '{}'", node_name);
+                            debug!("Using cached node info for '{}'", node_name);
                             cached_entities.push(existing);
                             continue;
                         }
                     }
                 }
 
-                debug!("⚠️ Cache expired or missing for '{}'", node_name);
+                debug!("Cache expired or missing for '{}'", node_name);
                 expired_or_missing = true;
             }
         }
     }
 
-    // 2️⃣ If cache is valid for all records → return only cached
+    // 2) If cache is valid for all records → return only cached
     if !expired_or_missing && !cached_entities.is_empty() {
-        debug!("📦 All cached node info is fresh, skipping API call.");
+        debug!("All cached node info is fresh, skipping API call.");
         return Ok(cached_entities);
     }
 
-    // 3️⃣ Fetch from Kubernetes API
-    debug!("🌐 Fetching nodes from K8s API (some cache expired or missing)");
+    // 3) Fetch from Kubernetes API
+    debug!("Fetching nodes from K8s API (some cache expired or missing)");
     let node_list = fetch_nodes(&client).await?;
     debug!("Fetched {} node(s) from API", node_list.len());
 
     let mut result_entities = cached_entities;
 
-    // 4️⃣ Process each node
+    // 4) Process each node
     for node in node_list {
         let node_name = node.metadata.name.clone().unwrap_or_default();
 
@@ -119,7 +123,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
 
         // Save merged result
         if let Err(e) = repo.update(&merged) {
-            debug!("⚠️ Failed to update node '{}': {:?}", &node_name, e);
+            debug!("Failed to update node '{}': {:?}", &node_name, e);
         }
 
         result_entities.push(merged);
@@ -128,20 +132,19 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
     Ok(result_entities)
 }
 
-
-pub async fn patch_info_k8s_node(
+pub async fn patch_info_k8s_node_filter(
     id: String,
     patch: InfoK8sNodePatchRequest,
 ) -> Result<serde_json::Value> {
     patch.validate()?;
     let repo = InfoNodeRepository::new();
 
-    // 1️⃣ Load existing record
+    // 1) Load existing record
     let mut entity = repo
         .read(&id)
         .map_err(|_| anyhow!("Node '{}' not found", id))?;
 
-    // 2️⃣ Apply patch — only update fields that are Some()
+    // 2) Apply patch – only update fields that are Some()
     if let Some(team) = patch.team {
         entity.team = Some(team);
     }
@@ -154,12 +157,43 @@ pub async fn patch_info_k8s_node(
         entity.env = Some(env);
     }
 
-    // 3️⃣ Update timestamp
+    // 3) Update timestamp
     entity.last_updated_info_at = Some(Utc::now());
 
-    // 4️⃣ Store back
+    // 4) Store back
     repo.update(&entity)?;
 
-    // 5️⃣ Return updated JSON
+    // 5) Return updated JSON
+    Ok(serde_json::to_value(&entity)?)
+}
+
+pub async fn patch_info_k8s_node_price(
+    id: String,
+    patch: InfoK8sNodePricePatchRequest,
+) -> Result<serde_json::Value> {
+    patch.validate()?;
+    let repo = InfoNodeRepository::new();
+
+    // 1) Load existing record
+    let mut entity = repo
+        .read(&id)
+        .map_err(|_| anyhow!("Node '{}' not found", id))?;
+
+    // 2) Apply patch – only update fields that are Some()
+    if let Some(fixed_instance_usd) = patch.fixed_instance_usd {
+        entity.fixed_instance_usd = Some(fixed_instance_usd);
+    }
+
+    if let Some(price_period) = patch.price_period {
+        entity.price_period = Some(price_period);
+    }
+
+    // 3) Update timestamp
+    entity.last_updated_info_at = Some(Utc::now());
+
+    // 4) Store back
+    repo.update(&entity)?;
+
+    // 5) Return updated JSON
     Ok(serde_json::to_value(&entity)?)
 }

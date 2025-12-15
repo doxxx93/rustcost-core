@@ -1,4 +1,4 @@
-use super::info_node_entity::InfoNodeEntity;
+use super::info_node_entity::{InfoNodeEntity, NodePricePeriod};
 use crate::core::persistence::info::k8s::info_dynamic_fs_adapter_trait::InfoDynamicFsAdapterTrait;
 use anyhow::{anyhow, Context, Result};
 use std::{fs::{self, File}, io::{BufRead, BufReader}, path::Path};
@@ -63,6 +63,15 @@ impl InfoDynamicFsAdapterTrait<InfoNodeEntity> for InfoNodeFsAdapter {
                     "IMAGE_COUNT" => v.image_count = val.parse().ok(),
                     "IMAGE_NAMES" => v.image_names = Some(val.split(',').map(|s| s.trim().to_string()).collect()),
                     "IMAGE_TOTAL_SIZE_BYTES" => v.image_total_size_bytes = val.parse().ok(),
+
+                    "FIXED_INSTANCE_USD" => v.fixed_instance_usd = val.parse().ok(),
+                    "PRICE_PERIOD" => v.price_period = match val.to_lowercase().as_str() {
+                        "unit" => Some(NodePricePeriod::Unit),
+                        "hour" => Some(NodePricePeriod::Hour),
+                        "day" => Some(NodePricePeriod::Day),
+                        "month" => Some(NodePricePeriod::Month),
+                        _ => None,
+                    },
 
                     "TEAM" => v.team = Some(val),
                     "SERVICE" => v.service = Some(val),
@@ -192,6 +201,15 @@ impl InfoNodeFsAdapter {
         write_field!("IMAGE_COUNT", data.image_count.map(|v| v.to_string()));
         write_field!("IMAGE_NAMES", data.image_names.clone().map(|v| v.join(",")));
         write_field!("IMAGE_TOTAL_SIZE_BYTES", data.image_total_size_bytes.map(|v| v.to_string()));
+
+        // ---- Cost (node-specific) ----
+        write_field!("FIXED_INSTANCE_USD", data.fixed_instance_usd.map(|v| v.to_string()));
+        write_field!(
+            "PRICE_PERIOD",
+            data.price_period
+                .as_ref()
+                .map(|v| format!("{:?}", v))
+        );
 
         // ---- Custom fields ----
         write_field!("TEAM", data.team);

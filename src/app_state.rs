@@ -57,7 +57,10 @@ use crate::domain::info::service::info_k8s_limit_range_service::get_k8s_limit_ra
 use crate::domain::info::service::info_k8s_hpa_service::get_k8s_hpas;
 
 use crate::domain::info::service::info_k8s_node_service::{
-    get_info_k8s_node, list_k8s_nodes, patch_info_k8s_node,
+    get_info_k8s_node,
+    list_k8s_nodes,
+    patch_info_k8s_node_filter,
+    patch_info_k8s_node_price,
 };
 use crate::domain::info::service::info_k8s_pod_service::{
     get_info_k8s_pod, list_k8s_pods, patch_info_k8s_pod,
@@ -88,7 +91,10 @@ use crate::core::persistence::info::k8s::container::info_container_entity::InfoC
 use crate::domain::info::dto::info_unit_price_upsert_request::InfoUnitPriceUpsertRequest;
 use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
 use crate::domain::info::dto::info_alert_upsert_request::InfoAlertUpsertRequest;
-use crate::domain::info::dto::info_k8s_node_patch_request::InfoK8sNodePatchRequest;
+use crate::domain::info::dto::info_k8s_node_patch_request::{
+    InfoK8sNodePatchRequest,
+    InfoK8sNodePricePatchRequest,
+};
 use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 
@@ -266,7 +272,8 @@ impl InfoK8sService {
 
         fn get_info_k8s_node(node_name: String) -> InfoNodeEntity => get_info_k8s_node;
         fn list_k8s_nodes() -> Vec<InfoNodeEntity> => list_k8s_nodes;
-        fn patch_info_k8s_node(id: String, patch: InfoK8sNodePatchRequest) -> serde_json::Value => patch_info_k8s_node;
+        fn patch_info_k8s_node_filter(id: String, patch: InfoK8sNodePatchRequest) -> serde_json::Value => patch_info_k8s_node_filter;
+        fn patch_info_k8s_node_price(id: String, patch: InfoK8sNodePricePatchRequest) -> serde_json::Value => patch_info_k8s_node_price;
 
         fn get_info_k8s_pod(pod_uid: String) -> InfoPodEntity => get_info_k8s_pod;
         fn list_k8s_pods(state: AppState, filter: K8sPodQueryRequestDto) -> PaginatedResponse<InfoPodEntity> => list_k8s_pods;
