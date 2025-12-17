@@ -3,6 +3,7 @@ use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_fs_adap
 use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_retention_repository_traits::MetricNodeHourRetentionRepository;
 use crate::core::persistence::metrics::k8s::node::metric_node_entity::MetricNodeEntity;
 use crate::core::persistence::metrics::metric_fs_adapter_base_trait::MetricFsAdapterBase;
+use crate::domain::common::service::MetricRowRepository;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use tracing::error;
@@ -16,6 +17,17 @@ impl MetricNodeHourRepository {
         Self {
             adapter: MetricNodeHourFsAdapter,
         }
+    }
+}
+
+impl MetricRowRepository<MetricNodeEntity> for MetricNodeHourRepository {
+    fn get_row_between(
+        &self,
+        object_name: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<MetricNodeEntity>> {
+        MetricNodeHourApiRepository::get_row_between(self, object_name, start, end)
     }
 }
 

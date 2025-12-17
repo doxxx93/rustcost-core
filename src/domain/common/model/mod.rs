@@ -14,3 +14,10 @@ pub struct RangeParams {
     pub namespace: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct DaySplitRows<T> {
+    pub start_hour_rows: Vec<T>,
+    pub end_hour_rows: Vec<T>,
+    pub middle_day_rows: Vec<T>,
+}
+

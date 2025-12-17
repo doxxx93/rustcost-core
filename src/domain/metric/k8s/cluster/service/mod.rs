@@ -1,18 +1,122 @@
 use crate::api::dto::metrics_dto::RangeQuery;
 use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::InfoUnitPriceEntity;
+use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_repository::MetricNodeDayRepository;
 use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_api_repository_trait::MetricNodeHourApiRepository;
+use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_repository::MetricNodeHourRepository;
 use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_api_repository_trait::MetricNodeMinuteApiRepository;
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_efficiency_dto::{MetricRawEfficiencyDto, MetricRawEfficiencyResponseDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::{MetricRawSummaryDto, MetricRawSummaryResponseDto};
-use crate::domain::metric::k8s::common::dto::{CommonMetricValuesDto, FilesystemMetricDto, MetricGetResponseDto, MetricScope, MetricSeriesDto, NetworkMetricDto, UniversalMetricPointDto};
+use crate::domain::metric::k8s::common::dto::{CommonMetricValuesDto, FilesystemMetricDto, MetricGetResponseDto, MetricGranularity, MetricScope, MetricSeriesDto, NetworkMetricDto, UniversalMetricPointDto};
 use crate::domain::metric::k8s::common::service_helpers::{apply_costs, build_cost_summary_dto, build_cost_trend_dto, resolve_time_window};
+use crate::domain::common::service::day_granularity::{split_day_granularity_rows};
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_resolve::resolve_k8s_metric_repository;
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8sMetricRepositoryVariant;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
+use crate::domain::metric::k8s::common::dto::metric_k8s_cost_summary_dto::{MetricCostSummaryDto, MetricCostSummaryResponseDto};
+
+pub async fn get_metric_k8s_cluster_cost_summary(
+    node_names: Vec<String>,
+    unit_prices: InfoUnitPriceEntity,
+    q: RangeQuery,
+) -> Result<Value> {
+    let window = resolve_time_window(&q);
+
+    let mut total_cpu_cost = 0.0;
+    let mut total_memory_cost = 0.0;
+    let mut total_storage_cost = 0.0;
+
+    let info_repo =
+        crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository::new();
+
+    let metric_repo =
+        resolve_k8s_metric_repository(&MetricScope::Node, &window.granularity);
+
+    for node_name in node_names {
+        let running_hours = match window.granularity {
+
+            MetricGranularity::Minute => {
+                let rows = match &metric_repo {
+                    K8sMetricRepositoryVariant::NodeMinute(r) =>
+                        r.get_row_between(&node_name, window.start, window.end),
+                    _ => Ok(vec![]),
+                }?;
+                rows.len() as f64 / 60.0
+            }
+
+            MetricGranularity::Hour => {
+                let rows = match &metric_repo {
+                    K8sMetricRepositoryVariant::NodeHour(r) =>
+                        MetricNodeHourApiRepository::get_row_between(
+                            r,
+                            &node_name,
+                            window.start,
+                            window.end,
+                        ),
+                    _ => Ok(vec![]),
+                }?;
+                rows.len() as f64
+            }
+
+            MetricGranularity::Day => {
+                let day_repo = MetricNodeDayRepository::new();
+                let hour_repo = MetricNodeHourRepository::new();
+
+                let split_row = split_day_granularity_rows(
+                    &node_name,
+                    &window,
+                    &day_repo,
+                    &hour_repo,
+                )?;
+
+                let hours = split_row.start_hour_rows.len() as f64 + split_row.end_hour_rows.len() as f64 + split_row.middle_day_rows.len() as f64 * 24.0;
+
+                hours
+            }
+        };
+
+        if running_hours <= 0.0 {
+            continue;
+        }
+
+        let node_info = match info_repo.read(&node_name) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let cpu_cores = node_info.cpu_capacity_cores.unwrap_or(0) as f64;
+        let memory_gb = node_info.memory_capacity_bytes.unwrap_or(0) as f64 / 1_073_741_824.0;
+        let storage_gb = node_info.ephemeral_storage_capacity_bytes.unwrap_or(0) as f64 / 1_073_741_824.0;
+
+        total_cpu_cost += cpu_cores * running_hours * unit_prices.cpu_core_hour;
+        total_memory_cost += memory_gb * running_hours * unit_prices.memory_gb_hour;
+        total_storage_cost += storage_gb * running_hours * unit_prices.storage_gb_hour;
+    }
+
+    let summary = MetricCostSummaryDto {
+        cpu_cost_usd: total_cpu_cost,
+        memory_cost_usd: total_memory_cost,
+        ephemeral_storage_cost_usd: total_storage_cost,
+        persistent_storage_cost_usd: 0.0,
+        total_cost_usd: total_cpu_cost + total_memory_cost + total_storage_cost,
+        network_cost_usd: 0.0,
+    };
+
+    let resp = MetricCostSummaryResponseDto {
+        start: window.start,
+        end: window.end,
+        scope: MetricScope::Cluster,
+        target: None,
+        granularity: window.granularity.clone(),
+        summary,
+    };
+
+    Ok(serde_json::to_value(resp)?)
+}
 
 pub async fn get_metric_k8s_cluster_raw(
     node_names: Vec<String>,
@@ -32,10 +136,20 @@ pub async fn get_metric_k8s_cluster_raw(
                 r.get_row_between(node_name, window.start, window.end)
             }
             K8sMetricRepositoryVariant::NodeHour(r) => {
-                r.get_row_between(node_name, window.start, window.end)
+                MetricNodeHourApiRepository::get_row_between(
+                    r,
+                    &node_name,
+                    window.start,
+                    window.end,
+                )
             }
             K8sMetricRepositoryVariant::NodeDay(r) => {
-                r.get_row_between(node_name, window.start, window.end)
+                MetricNodeDayApiRepository::get_row_between(
+                    r,
+                    &node_name,
+                    window.start,
+                    window.end,
+                )
             }
             K8sMetricRepositoryVariant::PodMinute(_)
             | K8sMetricRepositoryVariant::PodHour(_)
@@ -321,21 +435,6 @@ pub async fn get_metric_k8s_cluster_cost(
     Ok(serde_json::to_value(resp)?)
 }
 
-/// Summarize total cluster cost across all time points and resources
-pub async fn get_metric_k8s_cluster_cost_summary(
-    node_names: Vec<String>,
-    unit_prices: InfoUnitPriceEntity,
-    q: RangeQuery,
-) -> Result<Value> {
-    let raw_value = get_metric_k8s_cluster_cost(node_names, unit_prices.clone(), q).await?;
-    let cluster_cost: MetricGetResponseDto = serde_json::from_value(raw_value)?;
-
-    let summary_dto = build_cost_summary_dto(&cluster_cost, MetricScope::Cluster, None, &unit_prices);
-
-    Ok(serde_json::to_value(summary_dto)?)
-}
-
-/// Analyze cluster cost trend (growth, regression, prediction)
 /// Analyze cluster cost trend (growth, regression, prediction)
 pub async fn get_metric_k8s_cluster_cost_trend(
     node_names: Vec<String>,

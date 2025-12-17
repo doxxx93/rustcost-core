@@ -1,12 +1,13 @@
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_fs_adapter::MetricNodeDayFsAdapter;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_processor_repository_trait::MetricNodeDayProcessorRepository;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_retention_repository_traits::MetricNodeDayRetentionRepository;
 use crate::core::persistence::metrics::k8s::node::metric_node_entity::MetricNodeEntity;
 use crate::core::persistence::metrics::metric_fs_adapter_base_trait::MetricFsAdapterBase;
+use crate::domain::common::service::MetricRowRepository;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use tracing::error;
-use crate::core::persistence::metrics::k8s::node::day::metric_node_day_processor_repository_trait::MetricNodeDayProcessorRepository;
 
 pub struct MetricNodeDayRepository {
     adapter: MetricNodeDayFsAdapter,
@@ -17,6 +18,17 @@ impl MetricNodeDayRepository {
         Self {
             adapter: MetricNodeDayFsAdapter,
         }
+    }
+}
+
+impl MetricRowRepository<MetricNodeEntity> for MetricNodeDayRepository {
+    fn get_row_between(
+        &self,
+        object_name: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<MetricNodeEntity>> {
+        MetricNodeDayApiRepository::get_row_between(self, object_name, start, end)
     }
 }
 
