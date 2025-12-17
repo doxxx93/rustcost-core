@@ -11,6 +11,15 @@ pub struct K8sListQuery {
 }
 
 #[derive(Deserialize, Debug, Default)]
+pub struct K8sListNodeQuery {
+    #[serde(alias = "label-selector")]
+    pub label_selector: Option<String>,
+    pub team: Option<String>,
+    pub service: Option<String>,
+    pub env: Option<String>, // "dev", "stage", "prod"
+}
+
+#[derive(Deserialize, Debug, Default)]
 #[serde(default)]
 pub struct PaginationQuery {
     pub limit: Option<usize>,

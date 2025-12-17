@@ -5,6 +5,7 @@ use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::I
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository;
 use crate::core::persistence::info::path::info_k8s_node_dir_path;
+use crate::api::dto::info_dto::K8sListNodeQuery;
 use crate::domain::info::dto::info_k8s_node_patch_request::{
     InfoK8sNodePatchRequest,
     InfoK8sNodePricePatchRequest,
@@ -61,7 +62,7 @@ pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
 
 /// List all Kubernetes nodes, using local cache when fresh.
 /// Refresh occurs if cache is missing or older than 1 hour.
-pub async fn list_k8s_nodes(label_selector: Option<String>) -> Result<Vec<InfoNodeEntity>> {
+pub async fn list_k8s_nodes(filter: K8sListNodeQuery) -> Result<Vec<InfoNodeEntity>> {
     let now = Utc::now();
     debug!("Listing all Kubernetes nodes");
 
@@ -97,7 +98,7 @@ pub async fn list_k8s_nodes(label_selector: Option<String>) -> Result<Vec<InfoNo
     // 2) If cache is valid for all records → return only cached
     if !expired_or_missing && !cached_entities.is_empty() {
         debug!("All cached node info is fresh, skipping API call.");
-        return Ok(apply_node_label_filter(cached_entities, label_selector));
+        return Ok(apply_node_filters(cached_entities, &filter));
     }
 
     // 3) Fetch from Kubernetes API
@@ -130,18 +131,43 @@ pub async fn list_k8s_nodes(label_selector: Option<String>) -> Result<Vec<InfoNo
         result_entities.push(merged);
     }
 
-    Ok(apply_node_label_filter(result_entities, label_selector))
+    Ok(apply_node_filters(result_entities, &filter))
 }
 
-fn apply_node_label_filter(
+fn apply_node_filters(
     nodes: Vec<InfoNodeEntity>,
-    label_selector: Option<String>,
+    filter: &K8sListNodeQuery,
 ) -> Vec<InfoNodeEntity> {
-    if let Some(selector) = label_selector {
-        nodes.into_iter().filter(|n| matches_node_label(n, &selector)).collect()
-    } else {
-        nodes
-    }
+    nodes
+        .into_iter()
+        .filter(|n| {
+            if let Some(selector) = &filter.label_selector {
+                if !matches_node_label(n, selector) {
+                    return false;
+                }
+            }
+
+            if let Some(team) = &filter.team {
+                if n.team.as_deref() != Some(team.as_str()) {
+                    return false;
+                }
+            }
+
+            if let Some(service) = &filter.service {
+                if n.service.as_deref() != Some(service.as_str()) {
+                    return false;
+                }
+            }
+
+            if let Some(env) = &filter.env {
+                if n.env.as_deref() != Some(env.as_str()) {
+                    return false;
+                }
+            }
+
+            true
+        })
+        .collect()
 }
 
 fn matches_node_label(node: &InfoNodeEntity, selector: &str) -> bool {

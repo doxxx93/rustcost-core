@@ -110,7 +110,7 @@ use crate::domain::info::dto::info_k8s_node_patch_request::{
 use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
 
-use crate::api::dto::info_dto::K8sListQuery;
+use crate::api::dto::info_dto::{K8sListNodeQuery, K8sListQuery};
 use crate::api::dto::k8s_pod_query_request_dto::K8sPodQueryRequestDto;
 use crate::api::dto::paginated_response::PaginatedResponse;
 use crate::api::dto::metrics_dto::RangeQuery;
@@ -292,7 +292,7 @@ impl InfoK8sService {
         fn get_k8s_live_container(id: String) -> InfoContainerEntity => get_k8s_live_container;
 
         fn get_info_k8s_node(node_name: String) -> InfoNodeEntity => get_info_k8s_node;
-        fn list_k8s_nodes(label_selector: Option<String>) -> Vec<InfoNodeEntity> => list_k8s_nodes;
+        fn list_k8s_nodes(filter: K8sListNodeQuery) -> Vec<InfoNodeEntity> => list_k8s_nodes;
         fn patch_info_k8s_node_filter(id: String, patch: InfoK8sNodePatchRequest) -> serde_json::Value => patch_info_k8s_node_filter;
         fn patch_info_k8s_node_price(id: String, patch: InfoK8sNodePricePatchRequest) -> serde_json::Value => patch_info_k8s_node_price;
 
@@ -425,7 +425,7 @@ impl MetricService {
         q: RangeQuery,
         node_names: Vec<String>
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes(None).await?;
+        let nodes = list_k8s_nodes(K8sListNodeQuery::default()).await?;
         get_metric_k8s_cluster_raw_efficiency(nodes, node_names, q).await
     }
 

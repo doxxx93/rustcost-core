@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::api::util::json::to_json;
 use crate::api::dto::info_dto::PaginationQuery;
-use crate::api::dto::info_dto::K8sListQuery;
+use crate::api::dto::info_dto::K8sListNodeQuery;
 use crate::api::dto::ApiResponse;
 use crate::api::dto::paginated_response::PaginatedResponse;
 use crate::app_state::AppState;
@@ -29,9 +29,9 @@ impl InfoK8sNodeController {
 
     pub async fn list_k8s_nodes(
         State(state): State<AppState>,
-        Query(filter): Query<K8sListQuery>,
+        Query(filter): Query<K8sListNodeQuery>,
     ) -> Result<Json<ApiResponse<Vec<InfoNodeEntity>>>, AppError> {
-        to_json(state.info_k8s_service.list_k8s_nodes(filter.label_selector).await)
+        to_json(state.info_k8s_service.list_k8s_nodes(filter).await)
     }
 
     pub async fn patch_info_k8s_node_filter(
