@@ -26,4 +26,13 @@ impl CostUtil {
         let gb_hours = Self::bytes_to_gb_hours(bytes, interval_hours);
         gb_hours * prices.memory_gb_hour
     }
+
+    #[inline]
+    pub fn compute_cpu_cost_from_core_nano_seconds(core_nano_seconds: f64, prices: &InfoUnitPriceEntity) -> f64 {
+        // core_nano_seconds = core * nanoseconds
+        // 1) to core-seconds: / 1e9
+        // 2) to core-hours  : / 3600
+        let core_hours = (core_nano_seconds / 1_000_000_000.0) / 3600.0;
+        core_hours * prices.cpu_core_hour
+    }
 }

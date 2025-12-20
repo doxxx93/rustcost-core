@@ -30,44 +30,35 @@ use crate::domain::common::service::day_granularity::{split_day_granularity_rows
 fn fetch_pod_points(
     pod_uid: &str,
     window: &TimeWindow,
+    day_repo: &MetricPodDayRepository,
+    hour_repo: &MetricPodHourRepository,
+    minute_repo: &MetricPodMinuteRepository,
 ) -> Result<Vec<UniversalMetricPointDto>> {
-    // 1) Day granularity: split into (start-hour, middle-day, end-hour)
-    //    and read from hour/day repositories explicitly.
     let rows: Vec<MetricPodEntity> = match window.granularity {
         MetricGranularity::Day => {
-            // Concrete repositories (explicit construction)
-            let day_repo = MetricPodDayRepository::new();
-            let hour_repo = MetricPodHourRepository::new();
-
-            // Split range and fetch rows
             let split_rows = split_day_granularity_rows(
                 pod_uid,   // object_name 역할 = pod_uid
                 window,
-                &day_repo,
-                &hour_repo,
+                day_repo,
+                hour_repo,
             )?;
 
-            // Merge (keep original semantics: start-hour -> middle-day -> end-hour)
             let mut merged = Vec::new();
             merged.extend(split_rows.start_hour_rows);
             merged.extend(split_rows.middle_day_rows);
             merged.extend(split_rows.end_hour_rows);
 
-            // Optional but recommended: ensure chronological order
+            // Ensure chronological order
             merged.sort_by_key(|r| r.time);
-
             merged
         }
 
-        // 2) Non-day: keep existing behavior (single repo read)
         MetricGranularity::Hour => {
-            let repo = MetricPodHourRepository::new();
-            repo.get_row_between(window.start, window.end, pod_uid, None, None)?
+            hour_repo.get_row_between(window.start, window.end, pod_uid, None, None)?
         }
 
         MetricGranularity::Minute => {
-            let repo = MetricPodMinuteRepository::new();
-            repo.get_row_between(window.start, window.end, pod_uid, None, None)?
+            minute_repo.get_row_between(window.start, window.end, pod_uid, None, None)?
         }
 
         _ => Vec::new(),
@@ -160,8 +151,6 @@ async fn build_pod_raw_data(
     Ok((response, pod_infos))
 }
 
-
-
 fn build_pod_series_for_infos(
     q: &RangeQuery,
     pod_infos: &[InfoPodEntity],
@@ -169,18 +158,38 @@ fn build_pod_series_for_infos(
 ) -> Result<MetricGetResponseDto> {
     let window = resolve_time_window(q);
 
+    // 1) Create repos ONCE (reuse across all pods)
+    let day_repo = MetricPodDayRepository::new();
+    let hour_repo = MetricPodHourRepository::new();
+    let minute_repo = MetricPodMinuteRepository::new();
+
+    // 2) Apply API-level paging to the POD list (not to metric rows)
+    //    Adjust field names if your RangeQuery uses different ones.
+    let offset = q.offset.unwrap_or(0);
+    let limit = q.limit.unwrap_or(pod_infos.len());
+
+    let sliced = pod_infos
+        .iter()
+        .skip(offset)
+        .take(limit);
+
     let mut series = Vec::new();
-    for pod in pod_infos.iter() {
+
+    for pod in sliced {
         let pod_uid = pod
             .pod_uid
             .clone()
             .ok_or_else(|| anyhow!("Pod record missing UID"))?;
 
-        let points = fetch_pod_points(&pod_uid, &window)?;
-        let name = pod
-            .pod_name
-            .clone()
-            .unwrap_or_else(|| pod_uid.clone());
+        let points = fetch_pod_points(
+            &pod_uid,
+            &window,
+            &day_repo,
+            &hour_repo,
+            &minute_repo,
+        )?;
+
+        let name = pod.pod_name.clone().unwrap_or_else(|| pod_uid.clone());
 
         series.push(MetricSeriesDto {
             key: pod_uid,
@@ -197,9 +206,9 @@ fn build_pod_series_for_infos(
         target,
         granularity: window.granularity,
         series,
-        total: None,
-        limit: None,
-        offset: None,
+        total: Some(pod_infos.len()),
+        limit: Some(limit),
+        offset: Some(offset),
     })
 }
 
