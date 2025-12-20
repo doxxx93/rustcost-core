@@ -33,32 +33,48 @@ pub struct TimeWindow {
     pub granularity: MetricGranularity,
 }
 
+// Resolves a time window from a query by:
+// 1. Choosing a start time (query value or default = now - 1 hour)
+// 2. Choosing an end time (query value or default = now)
+// 3. Choosing a granularity:
+//    - Use the query granularity if valid
+//    - Otherwise fall back to an automatically determined granularity
 pub fn resolve_time_window(q: &RangeQuery) -> TimeWindow {
-    let start = q
-        .start
+    // Start time:
+    // - Use q.start if provided
+    // - Otherwise default to 1 hour ago
+    let start = q.start
         .map(|dt| DateTime::from_naive_utc_and_offset(dt, Utc))
-        .unwrap_or_else(|| Utc::now() - chrono::Duration::hours(1));
+        .unwrap_or(Utc::now() - chrono::Duration::hours(1));
 
-    let end = q
-        .end
+    // End time:
+    // - Use q.end if provided
+    // - Otherwise default to now
+    let end = q.end
         .map(|dt| DateTime::from_naive_utc_and_offset(dt, Utc))
-        .unwrap_or_else(Utc::now);
+        .unwrap_or(Utc::now());
 
-    let granularity = match q.granularity.clone() {
-        Some(g) => {
-            // Soft validation: log but never fail
-            if let Err(err) = validate_granularity(start, end, g.clone()) {
-                warn!("Invalid granularity override {:?}: {}", g, err);
-                // fallback to automatic granularity
-                determine_granularity(start, end)
-            } else {
-                g
-            }
+    // Granularity:
+    // - If provided in the query, validate it
+    // - If invalid, log a warning and auto-determine it
+    // - If not provided, auto-determine it
+    let granularity = if let Some(g) = q.granularity.clone() {
+        if validate_granularity(start, end, g.clone()).is_ok() {
+            g
+        } else {
+            warn!("Invalid granularity override {:?}, falling back to automatic", g);
+            determine_granularity(start, end)
         }
-        None => determine_granularity(start, end),
+    } else {
+        determine_granularity(start, end)
     };
 
-    TimeWindow { start, end, granularity }
+    // Return the resolved time window
+    TimeWindow {
+        start,
+        end,
+        granularity,
+    }
 }
 
 

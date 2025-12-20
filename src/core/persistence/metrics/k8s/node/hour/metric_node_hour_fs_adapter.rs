@@ -1,6 +1,6 @@
 use crate::core::persistence::metrics::metric_fs_adapter_base_trait::MetricFsAdapterBase;
 use crate::core::persistence::metrics::k8s::node::metric_node_entity::MetricNodeEntity;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, NaiveDate, Datelike, Utc};
 use std::io::BufWriter;
 use std::{
@@ -92,6 +92,61 @@ impl MetricNodeHourFsAdapter {
     fn opt(v: Option<u64>) -> String {
         v.map(|x| x.to_string()).unwrap_or_default()
     }
+
+    /// Generates a list of monthly metric file names (`YYYY-MM.rcd`)
+    /// covering the inclusive range between `start` and `end`.
+    ///
+    /// Logic:
+    /// 1. Convert `DateTime<Utc>` to `NaiveDate` (we only care about year/month)
+    /// 2. Normalize both dates to the first day of their respective months
+    /// 3. Validate that the range does not exceed 10 years (safety guard)
+    /// 4. Compute the total number of months between start and end (inclusive)
+    /// 5. Iterate month-by-month using a `for` loop
+    /// 6. Produce file names in the format `YYYY-MM.rcd`
+    ///
+    /// Returns an error if the date range exceeds 10 years.
+    fn monthly_file_names(
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<String>, String> {
+        let start_date = start.date_naive();
+        let end_date = end.date_naive();
+
+        // Safety guard: prevent generating an excessive number of files
+        if end_date.year() - start_date.year() > 10 {
+            return Err("date range exceeds 10 years".to_string());
+        }
+
+        // Normalize both dates to the first day of their month
+        let start_month =
+            NaiveDate::from_ymd_opt(start_date.year(), start_date.month(), 1).unwrap();
+
+        let end_month =
+            NaiveDate::from_ymd_opt(end_date.year(), end_date.month(), 1).unwrap();
+
+        // Total number of months between start and end (inclusive)
+        let total_months =
+            (end_month.year() - start_month.year()) * 12
+                + (end_month.month() as i32 - start_month.month() as i32)
+                + 1;
+
+        // Generate file names using a deterministic for-loop
+        let mut files = Vec::with_capacity(total_months as usize);
+
+        for offset in 0..total_months {
+            let year = start_month.year()
+                + (start_month.month() as i32 - 1 + offset) / 12;
+
+            let month =
+                (start_month.month() as i32 - 1 + offset) % 12 + 1;
+
+            files.push(format!("{year:04}-{month:02}.rcd"));
+        }
+
+        Ok(files)
+    }
+
+
 }
 
 impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeHourFsAdapter {
@@ -283,78 +338,75 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeHourFsAdapter {
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Vec<MetricNodeEntity>> {
+
+        tracing::info!("start {:?}", start);
+        tracing::info!("end {:?}", end);
+        tracing::info!("object_name {:?}", object_name);
+        tracing::info!("limit {:?}", limit);
+        tracing::info!("offset {:?}", offset);
+
+
         let mut data: Vec<MetricNodeEntity> = vec![];
 
         // Calculate month iteration range
         let mut current_date = start.date_naive();
         let end_date = end.date_naive();
 
-        while current_date <= end_date {
-            let path = self.build_path(object_name, current_date);
+
+        let header: Vec<&str> = vec![
+            "TIME", "CPU_USAGE_NANO_CORES", "CPU_USAGE_CORE_NANO_SECONDS",
+            "MEMORY_USAGE_BYTES", "MEMORY_WORKING_SET_BYTES", "MEMORY_RSS_BYTES",
+            "MEMORY_PAGE_FAULTS", "NETWORK_PHYSICAL_RX_BYTES", "NETWORK_PHYSICAL_TX_BYTES",
+            "NETWORK_PHYSICAL_RX_ERRORS", "NETWORK_PHYSICAL_TX_ERRORS",
+            "FS_USED_BYTES", "FS_CAPACITY_BYTES", "FS_INODES_USED", "FS_INODES",
+        ];
+
+        let file_names =
+            MetricNodeHourFsAdapter::monthly_file_names(start, end)
+                .map_err(|e| anyhow!(e))?;
+
+        for file_name in file_names {
+            let path = metric_k8s_node_key_hour_dir_path(object_name).join(file_name);
             let path_obj = Path::new(&path);
 
-            if !path_obj.exists() {
-                // Skip missing files silently
-                current_date = match current_date.with_day(1)
-                    .and_then(|d| d.succ_opt())
-                    .and_then(|next| next.with_day(1)) {
-                    Some(next_month_start) => next_month_start,
-                    None => break,
-                };
-                continue;
-            }
+            if path_obj.exists() {
+                let file = File::open(&path_obj)?;
+                let reader = BufReader::new(file);
+                let mut lines = reader.lines();
 
-            let file = File::open(&path_obj)?;
-            let reader = BufReader::new(file);
-            let mut lines = reader.lines();
+                if let Some(first_line_res) = lines.next() {
+                    let first_line = first_line_res?;
 
-            let first_line_opt = lines.next();
-            if first_line_opt.is_none() {
-                // empty file → skip
-                current_date = current_date.succ_opt().unwrap_or(current_date);
-                continue;
-            }
+                    if let Some(row) = Self::parse_line(&header, &first_line) {
+                        if row.time >= start && row.time <= end {
+                            data.push(row);
+                        }
+                    }
 
-            let first_line = first_line_opt.unwrap_or_else(|| Ok(String::new()))?;
-            let header: Vec<&str>;
-            if first_line.starts_with("20") {
-                // implicit header
-                header = vec![
-                    "TIME", "CPU_USAGE_NANO_CORES", "CPU_USAGE_CORE_NANO_SECONDS",
-                    "MEMORY_USAGE_BYTES", "MEMORY_WORKING_SET_BYTES", "MEMORY_RSS_BYTES",
-                    "MEMORY_PAGE_FAULTS", "NETWORK_PHYSICAL_RX_BYTES", "NETWORK_PHYSICAL_TX_BYTES",
-                    "NETWORK_PHYSICAL_RX_ERRORS", "NETWORK_PHYSICAL_TX_ERRORS",
-                    "FS_USED_BYTES", "FS_CAPACITY_BYTES", "FS_INODES_USED", "FS_INODES"
-                ];
-
-                if let Some(row) = Self::parse_line(&header, &first_line) {
-                    if row.time >= start && row.time <= end {
-                        data.push(row);
+                    for line in lines.flatten() {
+                        if let Some(row) = Self::parse_line(&header, &line) {
+                            if row.time < start {
+                                continue;
+                            }
+                            if row.time > end {
+                                break;
+                            }
+                            data.push(row);
+                        }
                     }
                 }
-            } else {
-                // Treat first line as header
-                header = first_line.split('|').collect();
             }
 
-            // Read the rest safely
-            for line in lines.flatten() {
-                if let Some(row) = Self::parse_line(&header, &line) {
-                    if row.time < start { continue; }
-                    if row.time > end { break; }
-                    data.push(row);
-                }
-            }
-
-            // Move to next month
+            // month progression preserved
             let next_month = if current_date.month() == 12 {
                 NaiveDate::from_ymd_opt(current_date.year() + 1, 1, 1)
             } else {
                 NaiveDate::from_ymd_opt(current_date.year(), current_date.month() + 1, 1)
             };
+
             current_date = match next_month {
-                Some(next) => next,
-                None => break,
+                Some(next) if next <= end_date => next,
+                _ => break,
             };
         }
 
@@ -365,6 +417,7 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeHourFsAdapter {
         let limit = limit.unwrap_or(data.len());
         let slice: Vec<_> = data.into_iter().skip(start_idx).take(limit).collect();
 
+        tracing::info!("FINISHED");
         Ok(slice)
     }
 

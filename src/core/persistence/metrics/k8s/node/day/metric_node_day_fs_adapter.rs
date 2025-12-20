@@ -524,6 +524,7 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeDayFsAdapter {
 
         Ok(filtered)
     }
+
     fn get_row_between(
         &self,
         start: DateTime<Utc>,
@@ -532,89 +533,92 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeDayFsAdapter {
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Vec<MetricNodeEntity>> {
-        let mut data: Vec<MetricNodeEntity> = vec![];
-        let mut current_date = start.date_naive();
-        let end_date = end.date_naive();
 
-        while current_date <= end_date {
-            let path = self.build_path_for(object_name, current_date);
+        // Collected result rows
+        let mut data: Vec<MetricNodeEntity> = Vec::new();
+
+        // 1️⃣ Determine year range from the requested time window
+        // Files are stored per YEAR, so iteration must also be per YEAR
+        let start_year = start.year();
+        let end_year = end.year();
+
+        // 2️⃣ Hard safety checks to prevent invalid or runaway queries
+        if end_year < start_year {
+            // Empty or invalid range
+            return Ok(vec![]);
+        }
+
+        // Absolute safety fuse: prevent absurdly large scans
+        if (end_year - start_year) > 10_000 {
+            return Err(anyhow!("year range too large"));
+        }
+
+        // 3️⃣ Iterate year-by-year (NOT day-by-day)
+        // Each yearly file is opened at most once
+        for year in start_year..=end_year {
+            let path = metric_k8s_node_key_day_file_path(object_name, &year.to_string());
             let path_obj = Path::new(&path);
 
+            // Skip years with no data file
             if !path_obj.exists() {
-                tracing::debug!("Metric file not found for {} on {}", object_name, current_date);
-                current_date = current_date.succ_opt().unwrap_or(current_date);
+                tracing::debug!(
+                "Metric year file not found for {} in {}",
+                object_name,
+                year
+            );
                 continue;
             }
 
+            // Open the yearly metric file
             let file = match File::open(&path_obj) {
                 Ok(f) => f,
                 Err(e) => {
                     tracing::warn!("Could not open {:?}: {}", path_obj, e);
-                    current_date = current_date.succ_opt().unwrap_or(current_date);
                     continue;
                 }
             };
 
             let reader = BufReader::new(file);
-            let mut lines = reader.lines();
 
-            let first_line_opt = lines.next();
-            if first_line_opt.is_none() {
-                current_date = current_date.succ_opt().unwrap_or(current_date);
-                continue;
-            }
+            // 4️⃣ Read file line-by-line
+            // Assumption: rows are written in chronological order
+            for line in reader.lines().flatten() {
+                // Parse a single metric row
+                let Some(row) = Self::parse_line(&[], &line) else {
+                    continue;
+                };
 
-            let first_line = match first_line_opt {
-                Some(Ok(line)) => line,
-                Some(Err(e)) => {
-                    tracing::warn!("Error reading line from {:?}: {}", path_obj, e);
-                    current_date = current_date.succ_opt().unwrap_or(current_date);
+                // Skip rows before the requested start time
+                if row.time < start {
                     continue;
                 }
-                None => continue,
-            };
 
-            // Detect header or data
-            let header: Vec<&str>;
-            let mut data_lines: Vec<String> = vec![];
-
-            if first_line.starts_with("TIME") || first_line.contains("CPU_USAGE") {
-                header = first_line.split('|').collect();
-            } else {
-                header = vec![
-                    "TIME", "CPU_USAGE_NANO_CORES", "CPU_USAGE_CORE_NANO_SECONDS",
-                    "MEMORY_USAGE_BYTES", "MEMORY_WORKING_SET_BYTES", "MEMORY_RSS_BYTES",
-                    "MEMORY_PAGE_FAULTS", "NETWORK_PHYSICAL_RX_BYTES", "NETWORK_PHYSICAL_TX_BYTES",
-                    "NETWORK_PHYSICAL_RX_ERRORS", "NETWORK_PHYSICAL_TX_ERRORS",
-                    "FS_USED_BYTES", "FS_CAPACITY_BYTES", "FS_INODES_USED", "FS_INODES",
-                ];
-                data_lines.push(first_line);
-            }
-
-            data_lines.extend(lines.flatten());
-
-            for line in data_lines {
-                if let Some(row) = Self::parse_line(&header, &line) {
-                    // Full time filtering (fixes duplication)
-                    if row.time < start || row.time > end {
-                        continue;
-                    }
-                    data.push(row);
+                // Stop reading this file once we exceed the end time
+                // This is critical for performance
+                if row.time > end {
+                    break;
                 }
-            }
 
-            current_date = current_date.succ_opt().unwrap_or(current_date);
+                // Row is within [start, end] → collect it
+                data.push(row);
+            }
         }
 
-        // Remove duplicates by timestamp (just in case)
+        // 5️⃣ Final cleanup: sort and remove duplicates (defensive)
         data.sort_by_key(|r| r.time);
         data.dedup_by_key(|r| r.time);
 
-        // Pagination
+        // 6️⃣ Apply pagination (offset + limit)
         let start_idx = offset.unwrap_or(0);
         let limit = limit.unwrap_or(data.len());
-        let slice: Vec<_> = data.into_iter().skip(start_idx).take(limit).collect();
 
-        Ok(slice)
+        Ok(
+            data.into_iter()
+                .skip(start_idx)
+                .take(limit)
+                .collect()
+        )
     }
+
+
 }

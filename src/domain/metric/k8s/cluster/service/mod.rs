@@ -17,24 +17,29 @@ use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8s
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
+use tracing::log;
 use crate::domain::metric::k8s::common::dto::metric_k8s_cost_summary_dto::{MetricCostSummaryDto, MetricCostSummaryResponseDto};
+
 
 pub async fn get_metric_k8s_cluster_cost_summary(
     node_names: Vec<String>,
     unit_prices: InfoUnitPriceEntity,
     q: RangeQuery,
 ) -> Result<Value> {
-    let window = resolve_time_window(&q);
-    
     let mut total_cpu_cost = 0.0;
     let mut total_memory_cost = 0.0;
     let mut total_storage_cost = 0.0;
 
-    let info_repo =
-        crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository::new();
+    let window = resolve_time_window(&q);
+    log::info!("HELLO");
+    log::info!("{:?}", window.granularity);
 
-    let metric_repo =
-        resolve_k8s_metric_repository(&MetricScope::Node, &window.granularity);
+    let info_repo = crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository::new();
+    let metric_repo = resolve_k8s_metric_repository(&MetricScope::Node, &window.granularity);
+
+
+
+
 
     for node_name in node_names {
         let running_hours = match window.granularity {
