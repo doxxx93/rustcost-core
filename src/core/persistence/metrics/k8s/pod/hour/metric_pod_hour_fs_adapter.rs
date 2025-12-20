@@ -87,9 +87,11 @@ impl MetricPodHourFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricPodEntity> for MetricPodHourFsAdapter {
-    fn append_row(&self, pod: &str, dto: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
-        let now_date = now.date_naive();
-        let path_str = self.build_path_for(pod, now_date);
+    fn append_row(&self, pod: &str, dto: &MetricPodEntity, _now: DateTime<Utc>) -> Result<()> {
+        // IMPORTANT: partition by the metric timestamp, not "now".
+        // This prevents late aggregation/backfill data from being written into the wrong file.
+        let dto_date = dto.time.date_naive();
+        let path_str = self.build_path_for(pod, dto_date);
         let path = Path::new(&path_str);
 
         if let Some(parent) = path.parent() {
@@ -151,68 +153,125 @@ impl MetricFsAdapterBase<MetricPodEntity> for MetricPodHourFsAdapter {
         end: DateTime<Utc>,
         now: DateTime<Utc>
     ) -> Result<()> {
-        // --- 1️⃣ Load minute data
+        // 1) Load minute-level samples in [start, end].
         let minute_adapter = MetricPodMinuteFsAdapter;
-        let rows = minute_adapter.get_row_between(start, end, pod_uid, None, None)?;
+        let mut rows = minute_adapter.get_row_between(start, end, pod_uid, None, None)?;
 
         if rows.is_empty() {
             return Err(anyhow!("no minute data found for aggregation"));
         }
 
-        // --- 2️⃣ Compute aggregates
-        let first = &rows.first().unwrap();
-        let last = &rows.last().unwrap();
+        // Ensure chronological order for weighted averaging and counter increase summation.
+        rows.sort_by_key(|r| r.time);
 
-        let avg = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
-            let (sum, count): (u64, u64) =
-                rows.iter().filter_map(f).fold((0, 0), |(s, c), v| (s + v, c + 1));
-            if count > 0 {
-                Some(sum / count)
-            } else {
-                None
+        let first = rows.first().unwrap();
+        let last = rows.last().unwrap();
+
+        // --- Time-weighted average for gauge metrics (state values).
+        // We assume each sample holds its value until the next sample timestamp.
+        // This is robust to missing samples and irregular sampling intervals.
+        let twa_u64 = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            let mut pts: Vec<(DateTime<Utc>, u64)> =
+                rows.iter().filter_map(|r| f(r).map(|v| (r.time, v))).collect();
+
+            if pts.is_empty() {
+                return None;
             }
+            pts.sort_by_key(|(t, _)| *t);
+
+            let window_ns = (end - start).num_nanoseconds()? as f64;
+            if window_ns <= 0.0 {
+                // Degenerate window: return the last known value as a safe fallback.
+                return Some(pts.last().unwrap().1);
+            }
+
+            let mut area: f64 = 0.0;
+
+            for i in 0..pts.len() {
+                let (t_i, v_i) = pts[i];
+                let seg_end = if i + 1 < pts.len() { pts[i + 1].0 } else { end };
+
+                // Clamp segment boundaries to [start, end].
+                let seg_start = std::cmp::max(t_i, start);
+                let seg_end = std::cmp::min(seg_end, end);
+
+                if seg_end > seg_start {
+                    let seg_ns = (seg_end - seg_start).num_nanoseconds()? as f64;
+                    area += (v_i as f64) * seg_ns;
+                }
+            }
+
+            Some((area / window_ns).round() as u64)
         };
 
-        let delta = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
-            match (f(first), f(last)) {
-                (Some(a), Some(b)) if b >= a => Some(b - a),
-                _ => None,
+        // --- Reset-aware sum of increases for counter metrics.
+        // Normal case: add positive deltas (cur - prev).
+        // Reset case: if cur < prev, assume counter restarted at 0; add cur (Prometheus increase-like).
+        let sum_increase_reset_aware = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            let mut acc: u64 = 0;
+            let mut prev: Option<u64> = None;
+            let mut has_pair = false;
+
+            for r in &rows {
+                let cur = match f(r) {
+                    Some(v) => v,
+                    None => continue,
+                };
+
+                if let Some(p) = prev {
+                    has_pair = true;
+                    if cur >= p {
+                        acc = acc.saturating_add(cur - p);
+                    } else {
+                        // Counter reset compensation.
+                        acc = acc.saturating_add(cur);
+                    }
+                }
+                prev = Some(cur);
             }
+
+            if has_pair { Some(acc) } else { None }
         };
 
+        // --- Supply/capacity snapshots: prefer max (conservative), fallback to last.
+        let max_u64 = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            rows.iter().filter_map(f).max()
+        };
+
+        // 2) Build hour-level aggregated row (timestamp = end of window).
         let aggregated = MetricPodEntity {
-            time: end, // time marker = end of the aggregation window
+            time: end,
 
             // CPU
-            cpu_usage_nano_cores: avg(|r| r.cpu_usage_nano_cores),
-            cpu_usage_core_nano_seconds: delta(|r| r.cpu_usage_core_nano_seconds),
+            cpu_usage_nano_cores: twa_u64(|r| r.cpu_usage_nano_cores),
+            cpu_usage_core_nano_seconds: sum_increase_reset_aware(|r| r.cpu_usage_core_nano_seconds),
 
             // Memory
-            memory_usage_bytes: avg(|r| r.memory_usage_bytes),
-            memory_working_set_bytes: avg(|r| r.memory_working_set_bytes),
-            memory_rss_bytes: avg(|r| r.memory_rss_bytes),
-            memory_page_faults: delta(|r| r.memory_page_faults),
+            memory_usage_bytes: twa_u64(|r| r.memory_usage_bytes),
+            memory_working_set_bytes: twa_u64(|r| r.memory_working_set_bytes),
+            memory_rss_bytes: twa_u64(|r| r.memory_rss_bytes),
+            memory_page_faults: sum_increase_reset_aware(|r| r.memory_page_faults),
 
             // Network
-            network_physical_rx_bytes: delta(|r| r.network_physical_rx_bytes),
-            network_physical_tx_bytes: delta(|r| r.network_physical_tx_bytes),
-            network_physical_rx_errors: delta(|r| r.network_physical_rx_errors),
-            network_physical_tx_errors: delta(|r| r.network_physical_tx_errors),
+            network_physical_rx_bytes: sum_increase_reset_aware(|r| r.network_physical_rx_bytes),
+            network_physical_tx_bytes: sum_increase_reset_aware(|r| r.network_physical_tx_bytes),
+            network_physical_rx_errors: sum_increase_reset_aware(|r| r.network_physical_rx_errors),
+            network_physical_tx_errors: sum_increase_reset_aware(|r| r.network_physical_tx_errors),
 
             // Ephemeral storage
-            es_used_bytes: avg(|r| r.es_used_bytes),
-            es_capacity_bytes: last.es_capacity_bytes,
-            es_inodes_used: avg(|r| r.es_inodes_used),
-            es_inodes: last.es_inodes,
+            es_used_bytes: twa_u64(|r| r.es_used_bytes),
+            es_capacity_bytes: max_u64(|r| r.es_capacity_bytes).or(last.es_capacity_bytes),
+            es_inodes_used: twa_u64(|r| r.es_inodes_used),
+            es_inodes: max_u64(|r| r.es_inodes).or(last.es_inodes),
 
             // Persistent storage
-            pv_used_bytes: avg(|r| r.pv_used_bytes),
-            pv_capacity_bytes: last.pv_capacity_bytes,
-            pv_inodes_used: avg(|r| r.pv_inodes_used),
-            pv_inodes: last.pv_inodes,
+            pv_used_bytes: twa_u64(|r| r.pv_used_bytes),
+            pv_capacity_bytes: max_u64(|r| r.pv_capacity_bytes).or(last.pv_capacity_bytes),
+            pv_inodes_used: twa_u64(|r| r.pv_inodes_used),
+            pv_inodes: max_u64(|r| r.pv_inodes).or(last.pv_inodes),
         };
 
-        // --- 3️⃣ Append the aggregated row into the hour-level file
+        // 3) Append the aggregated sample (storage partitioning uses aggregated.time internally).
         self.append_row(pod_uid, &aggregated, now)?;
 
         Ok(())

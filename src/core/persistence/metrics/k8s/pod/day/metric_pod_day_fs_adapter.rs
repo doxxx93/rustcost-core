@@ -84,9 +84,11 @@ impl MetricPodDayFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
-    fn append_row(&self, pod: &str, dto: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
-        let now_date = now.date_naive();
-        let path_str = self.build_path_for(pod, now_date);
+    fn append_row(&self, pod: &str, dto: &MetricPodEntity, _now: DateTime<Utc>) -> Result<()> {
+        // IMPORTANT: partition by the record timestamp (dto.time), not by "now".
+        // Day-level files are partitioned by YEAR (YYYY.rcd), so we must derive the path from dto.time.
+        let dto_date = dto.time.date_naive();
+        let path_str = self.build_path_for(pod, dto_date);
         let path = Path::new(&path_str);
 
         if let Some(parent) = path.parent() {
@@ -101,11 +103,6 @@ impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
             .append(true)
             .open(&path)?;
         let mut writer = BufWriter::new(file);
-
-        // Write header if file newly created
-        // if new {
-        //     self.ensure_header(path, &mut writer)?;
-        // }
 
         // Format the row
         let row = format!(
@@ -148,65 +145,104 @@ impl MetricFsAdapterBase<MetricPodEntity> for MetricPodDayFsAdapter {
         end: DateTime<Utc>,
         now: DateTime<Utc>
     ) -> Result<()> {
-        // --- 1️⃣ Load hour data
+        // 1) Load hour-level samples in [start, end].
         let hour_adapter = MetricPodHourFsAdapter;
-        let rows = hour_adapter.get_row_between(start, end, pod_uid, None, None)?;
+        let mut rows = hour_adapter.get_row_between(start, end, pod_uid, None, None)?;
 
         if rows.is_empty() {
             return Err(anyhow!("no hour data found for aggregation"));
         }
 
-        // --- 2️⃣ Compute aggregates
-        let first = rows.first().unwrap();
+        // Ensure chronological order for weighted averaging.
+        rows.sort_by_key(|r| r.time);
         let last = rows.last().unwrap();
 
-        let avg = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
-            let (sum, count): (u64, u64) =
-                rows.iter().filter_map(f).fold((0, 0), |(s, c), v| (s + v, c + 1));
-            if count > 0 {
-                Some(sum / count)
-            } else {
-                None
+        // --- TWA for gauges across hour samples (handles missing hours).
+        let twa_u64 = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            let mut pts: Vec<(DateTime<Utc>, u64)> =
+                rows.iter().filter_map(|r| f(r).map(|v| (r.time, v))).collect();
+
+            if pts.is_empty() {
+                return None;
             }
+            pts.sort_by_key(|(t, _)| *t);
+
+            let window_ns = (end - start).num_nanoseconds()? as f64;
+            if window_ns <= 0.0 {
+                return Some(pts.last().unwrap().1);
+            }
+
+            let mut area: f64 = 0.0;
+
+            for i in 0..pts.len() {
+                let (t_i, v_i) = pts[i];
+                let seg_end = if i + 1 < pts.len() { pts[i + 1].0 } else { end };
+
+                let seg_start = std::cmp::max(t_i, start);
+                let seg_end = std::cmp::min(seg_end, end);
+
+                if seg_end > seg_start {
+                    let seg_ns = (seg_end - seg_start).num_nanoseconds()? as f64;
+                    area += (v_i as f64) * seg_ns;
+                }
+            }
+
+            Some((area / window_ns).round() as u64)
         };
 
-        let delta = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
-            match (f(first), f(last)) {
-                (Some(a), Some(b)) if b >= a => Some(b - a),
-                _ => None,
+        // --- SUM for usage metrics already aggregated at hour level.
+        // IMPORTANT: hour->day should NOT re-apply "increase" to usage.
+        let sum_u64 = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            let mut acc: u64 = 0;
+            let mut found = false;
+
+            for v in rows.iter().filter_map(f) {
+                found = true;
+                acc = acc.saturating_add(v);
             }
+
+            if found { Some(acc) } else { None }
         };
 
+        // --- Supply/capacity snapshots: prefer max, fallback to last.
+        let max_u64 = |f: fn(&MetricPodEntity) -> Option<u64>| -> Option<u64> {
+            rows.iter().filter_map(f).max()
+        };
+
+        // 2) Build day-level row.
         let aggregated = MetricPodEntity {
-            time: end, // time marker = end of the aggregation window
+            time: end,
 
             // CPU
-            cpu_usage_nano_cores: avg(|r| r.cpu_usage_nano_cores),
-            cpu_usage_core_nano_seconds: delta(|r| r.cpu_usage_core_nano_seconds),
+            cpu_usage_nano_cores: twa_u64(|r| r.cpu_usage_nano_cores),             // gauge
+            cpu_usage_core_nano_seconds: sum_u64(|r| r.cpu_usage_core_nano_seconds), // usage(sum of hourly usage)
 
-            // Memory
-            memory_usage_bytes: avg(|r| r.memory_usage_bytes),
-            memory_working_set_bytes: avg(|r| r.memory_working_set_bytes),
-            memory_rss_bytes: avg(|r| r.memory_rss_bytes),
-            memory_page_faults: delta(|r| r.memory_page_faults),
+            // Memory (gauges)
+            memory_usage_bytes: twa_u64(|r| r.memory_usage_bytes),
+            memory_working_set_bytes: twa_u64(|r| r.memory_working_set_bytes),
+            memory_rss_bytes: twa_u64(|r| r.memory_rss_bytes),
 
-            // Network
-            network_physical_rx_bytes: delta(|r| r.network_physical_rx_bytes),
-            network_physical_tx_bytes: delta(|r| r.network_physical_tx_bytes),
-            network_physical_rx_errors: delta(|r| r.network_physical_rx_errors),
-            network_physical_tx_errors: delta(|r| r.network_physical_tx_errors),
+            // Page faults: if hour adapter converted it to usage(delta), sum it.
+            // If hour adapter kept it as counter (not recommended), then you'd use increase here instead.
+            memory_page_faults: sum_u64(|r| r.memory_page_faults),
 
-            // Ephemeral storage
-            es_used_bytes: avg(|r| r.es_used_bytes),
-            es_capacity_bytes: last.es_capacity_bytes,
-            es_inodes_used: avg(|r| r.es_inodes_used),
-            es_inodes: last.es_inodes,
+            // Network: same rule as page faults.
+            network_physical_rx_bytes: sum_u64(|r| r.network_physical_rx_bytes),
+            network_physical_tx_bytes: sum_u64(|r| r.network_physical_tx_bytes),
+            network_physical_rx_errors: sum_u64(|r| r.network_physical_rx_errors),
+            network_physical_tx_errors: sum_u64(|r| r.network_physical_tx_errors),
 
-            // Persistent storage
-            pv_used_bytes: avg(|r| r.pv_used_bytes),
-            pv_capacity_bytes: last.pv_capacity_bytes,
-            pv_inodes_used: avg(|r| r.pv_inodes_used),
-            pv_inodes: last.pv_inodes,
+            // Ephemeral storage (gauges + supply)
+            es_used_bytes: twa_u64(|r| r.es_used_bytes),
+            es_capacity_bytes: max_u64(|r| r.es_capacity_bytes).or(last.es_capacity_bytes),
+            es_inodes_used: twa_u64(|r| r.es_inodes_used),
+            es_inodes: max_u64(|r| r.es_inodes).or(last.es_inodes),
+
+            // Persistent storage (gauges + supply)
+            pv_used_bytes: twa_u64(|r| r.pv_used_bytes),
+            pv_capacity_bytes: max_u64(|r| r.pv_capacity_bytes).or(last.pv_capacity_bytes),
+            pv_inodes_used: twa_u64(|r| r.pv_inodes_used),
+            pv_inodes: max_u64(|r| r.pv_inodes).or(last.pv_inodes),
         };
 
         // --- 3️⃣ Append the aggregated row into the day-level file

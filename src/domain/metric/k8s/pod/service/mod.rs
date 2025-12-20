@@ -7,38 +7,62 @@ use crate::core::persistence::info::k8s::container::info_container_entity::InfoC
 use crate::core::persistence::info::k8s::pod::info_pod_api_repository_trait::InfoPodApiRepository;
 use crate::core::persistence::info::k8s::pod::info_pod_entity::InfoPodEntity;
 use crate::core::persistence::info::k8s::pod::info_pod_repository::InfoPodRepository;
-use crate::core::persistence::metrics::k8s::pod::day::metric_pod_day_api_repository_trait::MetricPodDayApiRepository;
+use crate::core::persistence::metrics::k8s::pod::day::metric_pod_day_repository::MetricPodDayRepository;
+use crate::core::persistence::metrics::k8s::pod::hour::metric_pod_hour_repository::MetricPodHourRepository;
 use crate::core::persistence::metrics::k8s::pod::hour::metric_pod_hour_api_repository_trait::MetricPodHourApiRepository;
 use crate::core::persistence::metrics::k8s::pod::metric_pod_entity::MetricPodEntity;
+use crate::core::persistence::metrics::k8s::pod::minute::metric_pod_minute_repository::MetricPodMinuteRepository;
 use crate::core::persistence::metrics::k8s::pod::minute::metric_pod_minute_api_repository_trait::MetricPodMinuteApiRepository;
 use crate::domain::info::service::{
     info_k8s_container_service, info_unit_price_service,
 };
 use crate::domain::metric::k8s::common::dto::{
     CommonMetricValuesDto, FilesystemMetricDto, MetricGetResponseDto, MetricScope, MetricSeriesDto,
-    NetworkMetricDto, StorageMetricDto, UniversalMetricPointDto,
+    NetworkMetricDto, StorageMetricDto, UniversalMetricPointDto, MetricGranularity,
 };
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::MetricRawSummaryResponseDto;
 use crate::domain::metric::k8s::common::service_helpers::{
     apply_costs, build_cost_summary_dto, build_cost_trend_dto, build_efficiency_value,
     build_raw_summary_value, resolve_time_window, TimeWindow, BYTES_PER_GB,
 };
-use crate::domain::metric::k8s::common::util::k8s_metric_repository_resolve::resolve_k8s_metric_repository;
-use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8sMetricRepositoryVariant;
+use crate::domain::common::service::day_granularity::{split_day_granularity_rows};
 
 fn fetch_pod_points(
-    repo: &K8sMetricRepositoryVariant,
     pod_uid: &str,
     window: &TimeWindow,
+    day_repo: &MetricPodDayRepository,
+    hour_repo: &MetricPodHourRepository,
+    minute_repo: &MetricPodMinuteRepository,
 ) -> Result<Vec<UniversalMetricPointDto>> {
-    let rows = match repo {
-        K8sMetricRepositoryVariant::PodMinute(r) => {
-            r.get_row_between(window.start, window.end, pod_uid, None, None)
+    let rows: Vec<MetricPodEntity> = match window.granularity {
+        MetricGranularity::Day => {
+            let split_rows = split_day_granularity_rows(
+                pod_uid,   // object_name 역할 = pod_uid
+                window,
+                day_repo,
+                hour_repo,
+            )?;
+
+            let mut merged = Vec::new();
+            merged.extend(split_rows.start_hour_rows);
+            merged.extend(split_rows.middle_day_rows);
+            merged.extend(split_rows.end_hour_rows);
+
+            // Ensure chronological order
+            merged.sort_by_key(|r| r.time);
+            merged
         }
-        K8sMetricRepositoryVariant::PodHour(r) => r.get_row_between(window.start, window.end, pod_uid, None, None),
-        K8sMetricRepositoryVariant::PodDay(r) => r.get_row_between(window.start, window.end, pod_uid, None, None),
-        _ => Ok(vec![]),
-    }?;
+
+        MetricGranularity::Hour => {
+            hour_repo.get_row_between(window.start, window.end, pod_uid, None, None)?
+        }
+
+        MetricGranularity::Minute => {
+            minute_repo.get_row_between(window.start, window.end, pod_uid, None, None)?
+        }
+
+        _ => Vec::new(),
+    };
 
     Ok(rows.into_iter().map(metric_pod_entity_to_point).collect())
 }
@@ -127,28 +151,45 @@ async fn build_pod_raw_data(
     Ok((response, pod_infos))
 }
 
-
-
 fn build_pod_series_for_infos(
     q: &RangeQuery,
     pod_infos: &[InfoPodEntity],
     target: Option<String>,
 ) -> Result<MetricGetResponseDto> {
     let window = resolve_time_window(q);
-    let repo = resolve_k8s_metric_repository(&MetricScope::Pod, &window.granularity);
+
+    // 1) Create repos ONCE (reuse across all pods)
+    let day_repo = MetricPodDayRepository::new();
+    let hour_repo = MetricPodHourRepository::new();
+    let minute_repo = MetricPodMinuteRepository::new();
+
+    // 2) Apply API-level paging to the POD list (not to metric rows)
+    //    Adjust field names if your RangeQuery uses different ones.
+    let offset = q.offset.unwrap_or(0);
+    let limit = q.limit.unwrap_or(pod_infos.len());
+
+    let sliced = pod_infos
+        .iter()
+        .skip(offset)
+        .take(limit);
 
     let mut series = Vec::new();
-    for pod in pod_infos.iter() {
+
+    for pod in sliced {
         let pod_uid = pod
             .pod_uid
             .clone()
             .ok_or_else(|| anyhow!("Pod record missing UID"))?;
 
-        let points = fetch_pod_points(&repo, &pod_uid, &window)?;
-        let name = pod
-            .pod_name
-            .clone()
-            .unwrap_or_else(|| pod_uid.clone());
+        let points = fetch_pod_points(
+            &pod_uid,
+            &window,
+            &day_repo,
+            &hour_repo,
+            &minute_repo,
+        )?;
+
+        let name = pod.pod_name.clone().unwrap_or_else(|| pod_uid.clone());
 
         series.push(MetricSeriesDto {
             key: pod_uid,
@@ -167,9 +208,9 @@ fn build_pod_series_for_infos(
         target,
         granularity: window.granularity,
         series,
-        total: None,
-        limit: None,
-        offset: None,
+        total: Some(pod_infos.len()),
+        limit: Some(limit),
+        offset: Some(offset),
     })
 }
 

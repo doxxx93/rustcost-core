@@ -220,15 +220,31 @@ pub fn apply_costs(response: &mut MetricGetResponseDto, unit_prices: &InfoUnitPr
             let interval_hours =
                 point_interval_hours_from_timestamps(&timestamps, idx, default_interval_hours);
 
-            // ---- CPU ----
-            let cpu_cost_usd = point.cpu_memory.cpu_usage_nano_cores
-                .map(|nano| CostUtil::compute_cpu_cost(nano, interval_hours, unit_prices));
+            // ---------------------------
+            // CPU (usage-based)
+            // ---------------------------
+            // IMPORTANT:
+            // - cpu_usage_nano_cores is a gauge (instantaneous), suitable for graphs, not cost.
+            // - cpu_usage_core_nano_seconds should already represent "usage within the interval"
+            //   after minute->hour (increase) and hour->day (sum).
+            let cpu_cost_usd = point.cpu_memory.cpu_usage_core_nano_seconds
+                .map(|core_nano_seconds| {
+                    CostUtil::compute_cpu_cost_from_core_nano_seconds(core_nano_seconds, unit_prices)
+                });
 
-            // ---- MEMORY ----
-            let memory_cost_usd = point.cpu_memory.memory_usage_bytes
+            // ---------------------------
+            // MEMORY (gauge * time)
+            // ---------------------------
+            // Prefer working_set for cost, fallback to memory_usage if missing.
+            let memory_bytes_for_cost = point.cpu_memory.memory_working_set_bytes
+                .or(point.cpu_memory.memory_usage_bytes);
+
+            let memory_cost_usd = memory_bytes_for_cost
                 .map(|bytes| CostUtil::compute_memory_cost(bytes, interval_hours, unit_prices));
 
-            // ---- STORAGE (ephemeral + persistent) ----
+            // ---------------------------
+            // STORAGE (gauge * time)
+            // ---------------------------
             let ephemeral_gb_hours = point.filesystem
                 .as_ref()
                 .and_then(|fs| fs.used_bytes)
@@ -245,14 +261,19 @@ pub fn apply_costs(response: &mut MetricGetResponseDto, unit_prices: &InfoUnitPr
             let total_storage_gb_hours = ephemeral_gb_hours + persistent_gb_hours;
             let storage_cost_usd = Some(total_storage_gb_hours * unit_prices.storage_gb_hour);
 
-            // ---- NETWORK ----
-            let network_cost_usd = point.network.as_ref().map(|n| {
+            // ---------------------------
+            // NETWORK (usage-based)
+            // ---------------------------
+            // If rx/tx are interval usage (bytes), do NOT multiply by interval_hours.
+            let network_cost_usd: f64 = point.network.as_ref().map(|n| {
                 let rx_gb = CostUtil::bytes_to_gb(n.rx_bytes.unwrap_or(0.0));
                 let tx_gb = CostUtil::bytes_to_gb(n.tx_bytes.unwrap_or(0.0));
                 (rx_gb + tx_gb) * unit_prices.network_external_gb
             }).unwrap_or(0.0);
 
-            // ---- TOTAL COST ----
+            // ---------------------------
+            // TOTAL
+            // ---------------------------
             let total_cost_usd = Some(
                 cpu_cost_usd.unwrap_or(0.0)
                     + memory_cost_usd.unwrap_or(0.0)
@@ -260,7 +281,6 @@ pub fn apply_costs(response: &mut MetricGetResponseDto, unit_prices: &InfoUnitPr
                     + network_cost_usd
             );
 
-            // Store into point
             point.cost = Some(CostMetricDto {
                 total_cost_usd,
                 cpu_cost_usd,
