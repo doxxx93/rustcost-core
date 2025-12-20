@@ -6,6 +6,10 @@ use crate::core::persistence::metrics::metric_fs_adapter_base_trait::MetricFsAda
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use tracing::error;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_repository::MetricNodeDayRepository;
+use crate::core::persistence::metrics::k8s::node::metric_node_entity::MetricNodeEntity;
+use crate::domain::common::service::MetricRowRepository;
 
 pub struct MetricPodDayRepository {
     adapter: MetricPodDayFsAdapter,
@@ -16,6 +20,17 @@ impl MetricPodDayRepository {
         Self {
             adapter: MetricPodDayFsAdapter,
         }
+    }
+}
+
+impl MetricRowRepository<MetricPodEntity> for MetricPodDayRepository {
+    fn get_row_between(
+        &self,
+        object_name: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<MetricPodEntity>> {
+        MetricPodDayApiRepository::get_row_between(self, start, end, object_name, None, None)
     }
 }
 
