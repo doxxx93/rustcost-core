@@ -100,6 +100,8 @@ fn build_namespace_response(
             name: namespace.to_string(),
             scope: MetricScope::Namespace,
             points: aggregated,
+            running_hours: None,
+            cost_summary: None,
         }],
         total: None,
         limit: None,

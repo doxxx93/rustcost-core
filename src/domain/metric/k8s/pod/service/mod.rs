@@ -155,6 +155,8 @@ fn build_pod_series_for_infos(
             name,
             scope: MetricScope::Pod,
             points,
+            running_hours: None,
+            cost_summary: None,
         });
     }
 

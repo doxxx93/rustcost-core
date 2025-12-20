@@ -133,6 +133,8 @@ async fn build_container_raw_data(
                 name,
                 scope: MetricScope::Container,
                 points,
+                running_hours: None,
+                cost_summary: None,
             });
         }
     }

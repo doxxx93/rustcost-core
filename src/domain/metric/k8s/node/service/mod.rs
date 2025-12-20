@@ -6,20 +6,16 @@ use crate::core::persistence::info::fixed::unit_price::info_unit_price_entity::I
 use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository;
-use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_repository::MetricNodeDayRepository;
 use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_api_repository_trait::MetricNodeHourApiRepository;
+use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_repository::MetricNodeHourRepository;
 use crate::core::persistence::metrics::k8s::node::metric_node_entity::MetricNodeEntity;
 use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_api_repository_trait::MetricNodeMinuteApiRepository;
+use crate::domain::common::service::day_granularity::split_day_granularity_rows;
 use crate::domain::info::service::{info_unit_price_service};
-use crate::domain::metric::k8s::common::dto::{
-    CommonMetricValuesDto, FilesystemMetricDto, MetricGetResponseDto, MetricScope, MetricSeriesDto,
-    NetworkMetricDto, UniversalMetricPointDto,
-};
+use crate::domain::metric::k8s::common::dto::{CommonMetricValuesDto, FilesystemMetricDto, MetricGetResponseDto, MetricGranularity, MetricScope, MetricSeriesDto, NetworkMetricDto, UniversalMetricPointDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::MetricRawSummaryResponseDto;
-use crate::domain::metric::k8s::common::service_helpers::{
-    apply_costs, build_cost_summary_dto, build_cost_trend_dto, build_efficiency_value,
-    build_raw_summary_value, resolve_time_window, TimeWindow, BYTES_PER_GB,
-};
+use crate::domain::metric::k8s::common::service_helpers::{apply_costs, apply_node_costs, build_cost_summary_dto, build_cost_trend_dto, build_efficiency_value, build_node_cost_summary_dto, build_raw_summary_value, resolve_time_window, TimeWindow, BYTES_PER_GB};
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_resolve::resolve_k8s_metric_repository;
 use crate::domain::metric::k8s::common::util::k8s_metric_repository_variant::K8sMetricRepositoryVariant;
 
@@ -27,15 +23,73 @@ fn fetch_node_points(
     repo: &K8sMetricRepositoryVariant,
     node_name: &str,
     window: &TimeWindow,
-) -> Result<Vec<UniversalMetricPointDto>> {
-    let rows = match repo {
-        K8sMetricRepositoryVariant::NodeMinute(r) => r.get_row_between(node_name, window.start, window.end),
-        K8sMetricRepositoryVariant::NodeHour(r) => r.get_row_between(node_name, window.start, window.end),
-        K8sMetricRepositoryVariant::NodeDay(r) => r.get_row_between(node_name, window.start, window.end),
-        _ => Ok(vec![]),
-    }?;
+) -> Result<(Vec<UniversalMetricPointDto>, f64)> {
 
-    Ok(rows.into_iter().map(metric_node_entity_to_point).collect())
+    match repo {
+        // --------------------
+        // Minute
+        // --------------------
+        K8sMetricRepositoryVariant::NodeMinute(r) => {
+            let rows = r.get_row_between(node_name, window.start, window.end)?;
+            let running_hours = rows.len() as f64 / 60.0;
+
+            let points = rows
+                .into_iter()
+                .map(metric_node_entity_to_point)
+                .collect();
+
+            Ok((points, running_hours))
+        }
+
+        // --------------------
+        // Hour
+        // --------------------
+        K8sMetricRepositoryVariant::NodeHour(r) => {
+            let rows = r.get_row_between(node_name, window.start, window.end)?;
+            let running_hours = rows.len() as f64;
+
+            let points = rows
+                .into_iter()
+                .map(metric_node_entity_to_point)
+                .collect();
+
+            Ok((points, running_hours))
+        }
+
+        // --------------------
+        // Day
+        // --------------------
+        K8sMetricRepositoryVariant::NodeDay(_) => {
+            let day_repo = MetricNodeDayRepository::new();
+            let hour_repo = MetricNodeHourRepository::new();
+
+            let split = split_day_granularity_rows(
+                node_name,
+                window,
+                &day_repo,
+                &hour_repo,
+            )?;
+
+            let running_hours =
+                split.start_hour_rows.len() as f64 +
+                    split.end_hour_rows.len() as f64 +
+                    split.middle_day_rows.len() as f64 * 24.0;
+
+            let mut rows = Vec::new();
+            rows.extend(split.start_hour_rows);
+            rows.extend(split.middle_day_rows);
+            rows.extend(split.end_hour_rows);
+
+            let points = rows
+                .into_iter()
+                .map(metric_node_entity_to_point)
+                .collect();
+
+            Ok((points, running_hours))
+        }
+
+        _ => Ok((vec![], 0.0)),
+    }
 }
 
 fn metric_node_entity_to_point(entity: MetricNodeEntity) -> UniversalMetricPointDto {
@@ -130,12 +184,14 @@ async fn build_node_raw_data(
             .clone()
             .ok_or_else(|| anyhow!("Node record missing name"))?;
 
-        let points = fetch_node_points(&metric_repo, &name, &window)?;
+        let (points, running_hours) = fetch_node_points(&metric_repo, &name, &window)?;
         series.push(MetricSeriesDto {
             key: name.clone(),
             name: name.clone(),
             scope: MetricScope::Node,
             points,
+            running_hours: Some(running_hours),
+            cost_summary: None,
         });
     }
 
@@ -222,8 +278,20 @@ async fn build_node_cost_response(
     node_names: Vec<String>,
     unit_prices: InfoUnitPriceEntity,
 ) -> Result<MetricGetResponseDto> {
-    let (mut response, _) = build_node_raw_data(q, node_names).await?;
-    apply_costs(&mut response, &unit_prices);
+    let (mut response, node_infos) = build_node_raw_data(q, node_names).await?;
+    apply_node_costs(&mut response, &unit_prices, &node_infos);
+
+    Ok(response)
+}
+
+async fn build_node_cost_response_v2(
+    q: RangeQuery,
+    node_names: Vec<String>,
+    unit_prices: InfoUnitPriceEntity,
+) -> Result<MetricGetResponseDto> {
+    let (mut response, node_infos) = build_node_raw_data(q, node_names).await?;
+    apply_node_costs(&mut response, &unit_prices, &node_infos);
+
     Ok(response)
 }
 
@@ -234,6 +302,13 @@ pub async fn get_metric_k8s_nodes_cost(q: RangeQuery, node_names: Vec<String>) -
 }
 
 pub async fn get_metric_k8s_nodes_cost_summary(q: RangeQuery, node_names: Vec<String>) -> Result<Value> {
+    let unit_prices = info_unit_price_service::get_info_unit_prices().await?;
+    let response = build_node_cost_response(q, node_names, unit_prices.clone()).await?;
+    let dto = build_node_cost_summary_dto(&response, MetricScope::Node, None, &unit_prices);
+    Ok(serde_json::to_value(dto)?)
+}
+
+pub async fn get_metric_k8s_nodes_cost_summary_v2(q: RangeQuery, node_names: Vec<String>) -> Result<Value> {
     let unit_prices = info_unit_price_service::get_info_unit_prices().await?;
     let response = build_node_cost_response(q, node_names, unit_prices.clone()).await?;
     let dto = build_cost_summary_dto(&response, MetricScope::Node, None, &unit_prices);

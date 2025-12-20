@@ -25,7 +25,7 @@ pub async fn get_metric_k8s_cluster_cost_summary(
     q: RangeQuery,
 ) -> Result<Value> {
     let window = resolve_time_window(&q);
-
+    
     let mut total_cpu_cost = 0.0;
     let mut total_memory_cost = 0.0;
     let mut total_storage_cost = 0.0;
@@ -73,9 +73,7 @@ pub async fn get_metric_k8s_cluster_cost_summary(
                     &hour_repo,
                 )?;
 
-                let hours = split_row.start_hour_rows.len() as f64 + split_row.end_hour_rows.len() as f64 + split_row.middle_day_rows.len() as f64 * 24.0;
-
-                hours
+                split_row.start_hour_rows.len() as f64 + split_row.end_hour_rows.len() as f64 + split_row.middle_day_rows.len() as f64 * 24.0
             }
         };
 
@@ -210,6 +208,8 @@ pub async fn get_metric_k8s_cluster_raw(
             name: "cluster".into(),
             scope: MetricScope::Cluster,
             points: cluster_points,
+            running_hours: None,
+            cost_summary: None,
         }],
         // Cluster API does not paginate output
         total: None,

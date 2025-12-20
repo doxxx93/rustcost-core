@@ -100,6 +100,8 @@ fn aggregate_deployment_response(
             name: deployment.to_string(),
             scope: MetricScope::Deployment,
             points: aggregated_points,
+            running_hours: None,
+            cost_summary: None,
         }],
         total: None,
         limit: None,

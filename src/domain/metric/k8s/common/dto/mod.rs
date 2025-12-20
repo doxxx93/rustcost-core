@@ -38,6 +38,8 @@ pub struct MetricSeriesDto {
     pub name: String,
     pub scope: MetricScope,
     pub points: Vec<UniversalMetricPointDto>,
+    pub running_hours: Option<f64>,
+    pub cost_summary: Option<CostMetricDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
