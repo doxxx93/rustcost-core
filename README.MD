@@ -1,12 +1,9 @@
-<h1 align="center" style="border-bottom: none">
-    <img alt="rustcost Logo" src="https://avatars.githubusercontent.com/u/233272142" width="120"><br>
-    <b>rustcost-core</b>
-</h1>
+<!-- Force Inter for README content (GitHub may ignore external font loads; inline styles are applied) -->
+<div style="font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
 
 <p align="center">
-The backend of <b>RustCost</b> — a lightweight, Kubernetes-native<br>
-cost monitoring and observability platform.<br>
-Provides API services, data aggregation, and metrics collection.
+  <img alt="rustcost Logo" src="https://avatars.githubusercontent.com/u/233272142" width="400" /><br />
+  <strong id="rc-title" style="font-size:40px;">RUSTCOST-CORE</strong>
 </p>
 
 <div align="center">
@@ -20,129 +17,130 @@ Provides API services, data aggregation, and metrics collection.
 
 ---
 
-## **Overview**
+![Docker Pulls](https://img.shields.io/docker/pulls/rustcost/core.svg) ![Docker Image Size](https://img.shields.io/docker/image-size/rustcost/core/1.0.0-dev.16) ![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)
 
-`rustcost-core` is the main backend service powering the RustCost platform.
-
-It is responsible for:
-
-- **Collecting Kubernetes cost data**
-- **Aggregating GPU/CPU/memory usage**
-- **Serving REST API endpoints** (Axum)
-- **Persisting data**
-- **Providing metrics** for dashboards & exporters
-
-Built in **Rust**, it is optimized for high throughput,  
-low latency, and operational safety.
+RustCost Core is a lightweight, Kubernetes-native backend that ingests cluster resource and billing data, normalizes and aggregates CPU/GPU/memory utilization and cost metrics, and exposes RESTful APIs plus Prometheus-compatible metrics for dashboards and exporters. It supports pluggable persistence (file or SQL adapters), scheduler-driven collectors, Helm deployment, and is optimized for high-throughput telemetry and cost-allocation workflows.
 
 ---
 
-## **Architecture**
+## Quick Start
 
-RustCost Core consists of:
+Requirements
 
-- **HTTP API Server (Axum)**
-- **Background Metrics Collector**
-- **File based-backed Storage**
+- Rust toolchain (`rustup`, stable toolchain recommended)
 
-It operates as a single lightweight container and is fully compatible with:
+Run locally (build & run):
 
-- Kubernetes (Helm)
-- Docker standalone deployments
+```bash
+# build
+cargo build --release
 
----
+# run (example; port shown matches code defaults)
+HOST=127.0.0.1 PORT=3000 RUSTCOST_LOG_LEVEL=info cargo run --release
+```
 
-## **Deployment Options**
+Run with Docker (example):
 
-You can deploy `rustcost-core` using **two methods**:
-
----
-
-# 1. Deploy via Kubernetes (Helm Chart)
-
-This is the **recommended** production deployment method.
-
-Helm chart:  
-https://github.com/rustcost/rustcost-helmchart
-
-The chart includes:
-
-- Core backend
-- GPU exporter integrations
-- Dashboards
-- Automatic configuration
-
----
-
-# **2. Standalone Docker Container**
-
-For testing or small setups:
-(TODO - Not Tested yet)
 ```bash
 docker run -d \
-  -p 9000:9000 \
-  -e DATABASE_URL=postgres://user:pass@host:5432/rustcost \
-  rustcost/core:latest
-````
----
+  -p 3000:3000 \
+  -e PORT=3000 \
+  -e RUSTCOST_LOG_LEVEL=info \
+  rustcost/core:1.0.0-dev.16
+```
 
-## **Configuration**
+Run with Helm (example):
 
-Environment variables:
+```bash
+helm repo add rustcost https://rustcost.github.io/helm-charts
+helm install rustcost-core rustcost/rustcost-core
+```
 
-| Variable       | Required | Description                          |
-| -------------- | -------- | ------------------------------------ |
-| `DATABASE_URL` | Yes      | PostgreSQL connection string         |
-| `RUST_LOG`     | No       | Logging level (`info`, `debug`, etc) |
-| `PORT`         | No       | API port (default: `9000`)           |
-
----
-
-## **Developer Notes**
+For production-grade deployment we recommend the Helm chart: https://github.com/rustcost/rustcost-helmchart
 
 ---
 
-## **Versioning Guideline**
+## Configuration (Environment Variables)
 
-RustCost follows a structured release process:
+These environment variables are read by the application (defaults shown):
 
-### **Development Phase**
+| Variable               | Required | Default       | Description |
+|-----------------------:|:--------:|:-------------:|:------------|
+| `HOST`                 | No       | `127.0.0.1`   | Server host/address (see `src/config.rs`) |
+| `PORT`                 | No       | `3000`        | API port (see `src/config.rs`) |
+| `RUSTCOST_DEBUG_MODE`  | No       | `false`       | If `1` or `true`, runs in debug mode (see `src/main.rs`) |
+| `RUSTCOST_LOG_DIR`     | No       | `<data>/logs` | Log directory used by tracing (see `src/logging.rs`) |
+| `RUSTCOST_LOG_LEVEL`   | No       | `info`        | Log level for tracing (see `src/logging.rs`) |
+| `DATABASE_URL`         | No       | —             | Optional Postgres DSN — only required if you enable Postgres-backed adapters |
 
-Frequent builds following:
+Notes:
 
-```
--dev.N
-```
+- The project defaults to a file-based persistence adapter; `DATABASE_URL` is optional and
+  only required when using Postgres-backed persistence implementations.
 
-Example:
+---
 
-```
-0.3.0-dev.4
-```
-
-### **Release Candidate Phase**
-
-Used before major production releases:
-
-```
--rc.N
-```
-
-Example:
+## Architecture
 
 ```
-1.0.0-rc.2
+[Kubernetes Cluster] --> [RustCost Core]
+                              |
+                    +---------+---------+
+                    |                   |
+          [HTTP API Server]   [Background Scheduler]
+              (Axum)              (Collectors)
+                    |                   |
+            RESTful APIs       Metrics Aggregation
+         Prometheus Metrics    Cost Calculations
+                    |                   |
+            +-------+-------+   +-------+-------+
+            | Pluggable      |   | File/SQL       |
+            | Persistence    |   | Adapters       |
+            +----------------+   +---------------+
 ```
 
-### **Final Production Release**
+- HTTP API Server (Axum)
+- Background scheduler and metrics collectors
+- Pluggable persistence (file-based adapters by default; DB adapters available)
 
-Stable semantic versioning:
+The service is designed to run as a single lightweight container and integrates with Kubernetes via Helm.
 
+---
+
+## Usage / API
+
+At minimum the service exposes a health endpoint and REST API routes for metrics/info.
+Please refer to the `src/api/routes` implementations for full route list and request/response models.
+
+Example health check:
+
+```bash
+curl http://127.0.0.1:3000/health
 ```
-1.0.0
-```
 
-Planned GA date: **December 21**
+(Add OpenAPI/Swagger link here if you publish a spec.)
+
+---
+
+## Deployment
+
+Helm
+
+- See https://github.com/rustcost/rustcost-helmchart for chart, recommended production values and examples.
+
+Docker
+
+- Images are published under `rustcost/core` — update tags per your CI workflow.
+
+---
+
+## Development
+
+- Formatting: `cargo fmt`
+- Linting: `cargo clippy`
+- Tests: `cargo test`
+
+For local development involving other services, consider using `docker-compose` to bring up dependent services (Postgres, exporters) if you enable DB-backed adapters.
 
 ---
 
@@ -156,6 +154,6 @@ We welcome:
 
 ---
 
-## **License**
+## License
 
-Licensed under the **Apache License, Version 2.0**.
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
