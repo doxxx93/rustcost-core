@@ -82,30 +82,26 @@ impl MetricPodMinuteFsAdapter {
 }
 
 impl MetricFsAdapterBase<MetricPodEntity> for MetricPodMinuteFsAdapter {
-    fn append_row(&self, pod: &str, dto: &MetricPodEntity, now: DateTime<Utc>) -> Result<()> {
-        let now_date = now.date_naive();
-        let path_str = self.build_path_for(pod, now_date);
+    fn append_row(&self, pod: &str, dto: &MetricPodEntity, _now: DateTime<Utc>) -> Result<()> {
+        // IMPORTANT: partition by the metric timestamp (dto.time), not by "now".
+        // This prevents late-arriving samples/backfills from being written into the wrong file.
+        let dto_date = dto.time.date_naive();
+        let path_str = self.build_path_for(pod, dto_date);
         let path = Path::new(&path_str);
 
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
 
-        // let new = !path.exists();
-
-        // ✅ open file and wrap in BufWriter
         let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&path)?;
         let mut writer = BufWriter::new(file);
 
-        // Write header if file newly created
-        // if new {
-        //     self.ensure_header(path, &mut writer)?;
-        // }
-
-        // Format the row
+        // Note: empty fields are serialized as empty string ("") to preserve current schema.
+        // If you want "missing network metrics" to behave as 0 in later aggregations,
+        // consider writing "0" instead of empty for counter fields at the ingestion stage.
         let row = format!(
             "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n",
             dto.time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
