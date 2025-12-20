@@ -13,7 +13,7 @@ Provides API services, data aggregation, and metrics collection.
 
 <!-- Badges -->
 <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/rustcost/core.svg">
-<img alt="Docker Image Size" src="https://img.shields.io/docker/image-size/rustcost/core/1.0.0-dev.22">
+<img alt="Docker Image Size" src="https://img.shields.io/docker/image-size/rustcost/core/1.0.0">
 <img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache--2.0-blue.svg">
 
 </div>
