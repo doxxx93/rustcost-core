@@ -339,13 +339,6 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeHourFsAdapter {
         offset: Option<usize>,
     ) -> Result<Vec<MetricNodeEntity>> {
 
-        tracing::info!("start {:?}", start);
-        tracing::info!("end {:?}", end);
-        tracing::info!("object_name {:?}", object_name);
-        tracing::info!("limit {:?}", limit);
-        tracing::info!("offset {:?}", offset);
-
-
         let mut data: Vec<MetricNodeEntity> = vec![];
 
         // Calculate month iteration range
@@ -417,7 +410,6 @@ impl MetricFsAdapterBase<MetricNodeEntity> for MetricNodeHourFsAdapter {
         let limit = limit.unwrap_or(data.len());
         let slice: Vec<_> = data.into_iter().skip(start_idx).take(limit).collect();
 
-        tracing::info!("FINISHED");
         Ok(slice)
     }
 
