@@ -23,6 +23,10 @@ pub fn info_alert_path() -> PathBuf {
     info_path("alerts.rci")
 }
 
+pub fn info_llm_path() -> PathBuf {
+    info_path("llm.rci")
+}
+
 pub fn info_setting_path() -> PathBuf {
     info_path("settings.rci")
 }

@@ -11,3 +11,4 @@ pub mod system;
 pub mod common;
 pub mod metric;
 pub mod alert;
+pub mod llm;

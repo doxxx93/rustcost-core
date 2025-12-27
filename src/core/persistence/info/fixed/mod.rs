@@ -3,3 +3,4 @@ pub mod setting;
 pub mod info_fixed_fs_adapter_trait;
 pub mod unit_price;
 pub mod alerts;
+pub mod llm;

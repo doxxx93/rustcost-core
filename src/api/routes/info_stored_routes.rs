@@ -5,6 +5,7 @@ use axum::{
     Router,
 };
 use crate::api::controller::info::alerts::InfoAlertController;
+use crate::api::controller::info::llm::InfoLlmController;
 use crate::api::controller::info::info_controller::InfoController;
 use crate::api::controller::info::k8s::{container, node, pod};
 use crate::api::controller::info::setting::InfoSettingController;
@@ -21,6 +22,11 @@ pub fn info_stored_routes() -> Router<AppState> {
             "/alerts",
             get(InfoAlertController::get_info_alerts)
                 .put(InfoAlertController::upsert_info_alerts),
+        )
+        .route(
+            "/llm",
+            get(InfoLlmController::get_info_llm)
+                .put(InfoLlmController::upsert_info_llm),
         )
         .route(
             "/unit-prices",
@@ -66,4 +72,3 @@ pub fn info_stored_routes() -> Router<AppState> {
             patch(container::InfoK8sContainerController::patch_info_k8s_container),
         )
 }
-
